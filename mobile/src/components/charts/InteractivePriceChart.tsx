@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Dimensions } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line, Text as SvgText, Rect } from 'react-native-svg';
 import { PriceChartData } from '../../types/dashboard';
-import { createLinePath, createSmoothAreaPath, formatCurrency } from './SvgChartUtils';
+import { createLinePath, createSmoothAreaPath } from './SvgChartUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   data: PriceChartData;
@@ -16,19 +17,25 @@ const PADDING_BOTTOM = 30;
 const PADDING_HORIZONTAL = 20;
 
 export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
+  const { colors, isDark } = useTheme();
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1Y' | '10Y'>('1Y');
 
   const tfData = selectedTimeframe === '1Y' ? data.timeframe_1y : data.timeframe_10y;
   const candles = tfData?.candles || [];
-  const minPrice = tfData?.min_price || 0;
-  const maxPrice = tfData?.max_price || 100;
   const currentPrice = tfData?.current || candles[candles.length - 1]?.close || 0;
 
-  // Si no hay velas, fallback básico
   if (candles.length < 2) {
     return (
-      <View className="h-48 bg-[#0f172a] rounded-2xl items-center justify-center border border-slate-800 my-2">
-        <Text className="text-slate-400 text-sm">Cargando gráfico de precios...</Text>
+      <View
+        style={{
+          backgroundColor: colors.cardBg,
+          borderColor: colors.cardBorder,
+        }}
+        className="h-48 rounded-2xl items-center justify-center border my-2"
+      >
+        <Text style={{ color: colors.textSecondary }} className="text-sm">
+          Cargando gráfico de precios...
+        </Text>
       </View>
     );
   }
@@ -54,25 +61,42 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
   const areaPath = createSmoothAreaPath(points, CHART_HEIGHT - PADDING_BOTTOM);
 
   const isUp = currentPrice >= candles[0].close;
-  const strokeColor = isUp ? '#10b981' : '#ef4444';
-  const gradientId = isUp ? 'priceGradientGreen' : 'priceGradientRed';
+  const strokeColor = isUp ? colors.positive : colors.negative;
+  const gradientId = isUp ? 'priceGradGreen' : 'priceGradRed';
 
   const minPoint = points[minIndex] || { x: 0, y: 0 };
   const maxPoint = points[maxIndex] || { x: 0, y: 0 };
 
   return (
-    <View className="bg-[#0f172a] rounded-2xl p-4 border border-slate-800 shadow-lg my-3">
+    <View
+      style={{
+        backgroundColor: colors.cardBg,
+        borderColor: colors.cardBorder,
+        shadowColor: colors.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+      }}
+      className="rounded-2xl p-4 border my-3"
+    >
       {/* Selector de Temporalidad */}
       <View className="flex-row justify-between items-center mb-3">
-        <Text className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <Text style={{ color: colors.textSecondary }} className="text-xs font-semibold uppercase tracking-wider">
           Evolución del Precio
         </Text>
-        <View className="flex-row bg-slate-900 rounded-xl p-1 border border-slate-800">
+        <View
+          style={{
+            backgroundColor: colors.pillBg,
+            borderColor: colors.pillBorder,
+          }}
+          className="flex-row rounded-xl p-1 border"
+        >
           <TouchableOpacity
             onPress={() => setSelectedTimeframe('1Y')}
             className={`px-3 py-1 rounded-lg ${selectedTimeframe === '1Y' ? 'bg-indigo-600' : 'bg-transparent'}`}
           >
-            <Text className={`text-xs font-bold ${selectedTimeframe === '1Y' ? 'text-white' : 'text-slate-400'}`}>
+            <Text className={`text-xs font-bold ${selectedTimeframe === '1Y' ? 'text-white' : colors.textSecondary}`}>
               1 Año
             </Text>
           </TouchableOpacity>
@@ -80,7 +104,7 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
             onPress={() => setSelectedTimeframe('10Y')}
             className={`px-3 py-1 rounded-lg ${selectedTimeframe === '10Y' ? 'bg-indigo-600' : 'bg-transparent'}`}
           >
-            <Text className={`text-xs font-bold ${selectedTimeframe === '10Y' ? 'text-white' : 'text-slate-400'}`}>
+            <Text className={`text-xs font-bold ${selectedTimeframe === '10Y' ? 'text-white' : colors.textSecondary}`}>
               10 Años
             </Text>
           </TouchableOpacity>
@@ -90,13 +114,13 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
       {/* Gráfico SVG */}
       <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
         <Defs>
-          <LinearGradient id="priceGradientGreen" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
-            <Stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+          <LinearGradient id="priceGradGreen" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%" stopColor={colors.positive} stopOpacity={isDark ? 0.4 : 0.22} />
+            <Stop offset="100%" stopColor={colors.positive} stopOpacity="0.0" />
           </LinearGradient>
-          <LinearGradient id="priceGradientRed" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#ef4444" stopOpacity="0.4" />
-            <Stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+          <LinearGradient id="priceGradRed" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%" stopColor={colors.negative} stopOpacity={isDark ? 0.4 : 0.22} />
+            <Stop offset="100%" stopColor={colors.negative} stopOpacity="0.0" />
           </LinearGradient>
         </Defs>
 
@@ -106,7 +130,7 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
           y1={PADDING_TOP}
           x2={CHART_WIDTH - PADDING_HORIZONTAL}
           y2={PADDING_TOP}
-          stroke="#1e293b"
+          stroke={colors.gridLine}
           strokeDasharray="4,4"
         />
         <Line
@@ -114,7 +138,7 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
           y1={PADDING_TOP + usableHeight / 2}
           x2={CHART_WIDTH - PADDING_HORIZONTAL}
           y2={PADDING_TOP + usableHeight / 2}
-          stroke="#1e293b"
+          stroke={colors.gridLine}
           strokeDasharray="4,4"
         />
         <Line
@@ -122,7 +146,7 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
           y1={CHART_HEIGHT - PADDING_BOTTOM}
           x2={CHART_WIDTH - PADDING_HORIZONTAL}
           y2={CHART_HEIGHT - PADDING_BOTTOM}
-          stroke="#334155"
+          stroke={colors.gridLine}
         />
 
         {/* Área Sombreada y Línea */}
@@ -130,35 +154,35 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
         <Path d={linePath} fill="none" stroke={strokeColor} strokeWidth={2.5} />
 
         {/* Indicador de Máximo */}
-        <Circle cx={maxPoint.x} cy={maxPoint.y} r={5} fill="#10b981" stroke="#0f172a" strokeWidth={2} />
+        <Circle cx={maxPoint.x} cy={maxPoint.y} r={5} fill={colors.positive} stroke={colors.cardBg} strokeWidth={2} />
         <Rect
           x={Math.max(10, Math.min(CHART_WIDTH - 70, maxPoint.x - 30))}
           y={Math.max(2, maxPoint.y - 20)}
           width={60}
           height={16}
           rx={4}
-          fill="#10b981"
+          fill={colors.positive}
         />
         <SvgText
           x={Math.max(10, Math.min(CHART_WIDTH - 70, maxPoint.x - 30)) + 30}
           y={Math.max(2, maxPoint.y - 20) + 11}
           fontSize="9"
           fontWeight="bold"
-          fill="#090d16"
+          fill="#FFFFFF"
           textAnchor="middle"
         >
           {`Max: $${actualMax.toFixed(0)}`}
         </SvgText>
 
         {/* Indicador de Mínimo */}
-        <Circle cx={minPoint.x} cy={minPoint.y} r={5} fill="#ef4444" stroke="#0f172a" strokeWidth={2} />
+        <Circle cx={minPoint.x} cy={minPoint.y} r={5} fill={colors.negative} stroke={colors.cardBg} strokeWidth={2} />
         <Rect
           x={Math.max(10, Math.min(CHART_WIDTH - 70, minPoint.x - 30))}
           y={Math.min(CHART_HEIGHT - 35, minPoint.y + 6)}
           width={60}
           height={16}
           rx={4}
-          fill="#ef4444"
+          fill={colors.negative}
         />
         <SvgText
           x={Math.max(10, Math.min(CHART_WIDTH - 70, minPoint.x - 30)) + 30}
@@ -176,7 +200,8 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
           x={PADDING_HORIZONTAL}
           y={CHART_HEIGHT - 10}
           fontSize="10"
-          fill="#64748b"
+          fontWeight="bold"
+          fill={colors.textSecondary}
           textAnchor="start"
         >
           {candles[0]?.date || 'Inicio'}
@@ -185,7 +210,8 @@ export const InteractivePriceChart: React.FC<Props> = ({ data }) => {
           x={CHART_WIDTH - PADDING_HORIZONTAL}
           y={CHART_HEIGHT - 10}
           fontSize="10"
-          fill="#64748b"
+          fontWeight="bold"
+          fill={colors.textSecondary}
           textAnchor="end"
         >
           {candles[candles.length - 1]?.date || 'Hoy'}

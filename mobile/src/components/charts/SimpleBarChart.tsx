@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Dimensions, TouchableOpacity } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import { sanitizeNumber, formatXAxisLabel } from './SvgChartUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   title: string;
@@ -25,10 +26,14 @@ export const SimpleBarChart: React.FC<Props> = ({
   periods,
   values,
   unit = '$',
-  positiveColor = '#10b981',
-  negativeColor = '#ef4444',
+  positiveColor,
+  negativeColor,
 }) => {
+  const { colors, isDark } = useTheme();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  const posCol = positiveColor || colors.positive;
+  const negCol = negativeColor || colors.negative;
 
   const safePeriods = periods || [];
   const safeValues = (values || []).map(v => sanitizeNumber(v, 0));
@@ -51,20 +56,46 @@ export const SimpleBarChart: React.FC<Props> = ({
   const activeVal = selectedIndex !== null ? safeValues[selectedIndex] : null;
 
   return (
-    <View className="bg-[#0f172a] rounded-2xl p-3.5 mb-3 border border-slate-800 shadow-md">
+    <View
+      style={{
+        backgroundColor: colors.cardBg,
+        borderColor: colors.cardBorder,
+        shadowColor: colors.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowRadius: 3,
+        elevation: 1.5,
+      }}
+      className="rounded-2xl p-3.5 mb-3 border"
+    >
       {/* 1. Título */}
-      <Text className="text-xs font-black text-slate-200 mb-1.5">{title}</Text>
+      <Text style={{ color: colors.textPrimary }} className="text-xs font-black mb-1.5">
+        {title}
+      </Text>
 
       {/* 2. Leyendas / Unidad en Fila Separada */}
       <View className="flex-row items-center justify-between mb-2 flex-wrap">
-        <View className="bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-800">
-          <Text className="text-[10px] font-semibold text-slate-400">{`Unidad: ${unit}`}</Text>
+        <View
+          style={{
+            backgroundColor: colors.pillBg,
+            borderColor: colors.pillBorder,
+          }}
+          className="px-2 py-0.5 rounded-md border"
+        >
+          <Text style={{ color: colors.textSecondary }} className="text-[10px] font-semibold">
+            {`Unidad: ${unit}`}
+          </Text>
         </View>
 
         {/* Tooltip con Valor Seleccionado */}
         {activePeriod && (
-          <View className="bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-500/40">
-            <Text className="text-[10px] font-bold text-indigo-300">
+          <View
+            style={{
+              backgroundColor: colors.tooltipBg,
+            }}
+            className="px-2 py-0.5 rounded shadow-sm"
+          >
+            <Text style={{ color: colors.tooltipText }} className="text-[10px] font-bold">
               {`${activePeriod}: ${unit}${activeVal?.toFixed(2)}`}
             </Text>
           </View>
@@ -78,7 +109,7 @@ export const SimpleBarChart: React.FC<Props> = ({
           y1={zeroY}
           x2={CHART_WIDTH - PADDING_RIGHT}
           y2={zeroY}
-          stroke="#475569"
+          stroke={colors.gridLine}
           strokeWidth={1}
         />
 
@@ -97,38 +128,38 @@ export const SimpleBarChart: React.FC<Props> = ({
               width={barWidth}
               height={Math.max(2, barHeight)}
               rx={2}
-              fill={isPos ? positiveColor : negativeColor}
+              fill={isPos ? posCol : negCol}
               opacity={isSelected ? 1 : 0.85}
             />
           );
         })}
 
+        {/* Etiquetas Eje X */}
         {safePeriods.map((period, idx) => {
-          const label = formatXAxisLabel(period, idx, count);
-          if (!label) return null;
+          const isSelected = selectedIndex === idx;
           const x = PADDING_LEFT + idx * colWidth + colWidth / 2;
           return (
             <SvgText
               key={`lbl-${idx}`}
               x={x}
-              y={CHART_HEIGHT - 8}
-              fontSize="8.5"
-              fontWeight={selectedIndex === idx ? 'bold' : 'normal'}
-              fill={selectedIndex === idx ? '#38bdf8' : '#94a3b8'}
+              y={CHART_HEIGHT - 10}
+              fontSize="9"
+              fontWeight={isSelected ? 'bold' : 'normal'}
+              fill={isSelected ? colors.textPrimary : colors.textSecondary}
               textAnchor="middle"
             >
-              {label}
+              {formatXAxisLabel(period, idx, count)}
             </SvgText>
           );
         })}
       </Svg>
 
-      {/* Áreas táctiles transparentes */}
+      {/* Capa de Toque Invisible */}
       <View
         style={{
           position: 'absolute',
-          top: 60,
-          left: PADDING_LEFT + 12,
+          top: PADDING_TOP + 40,
+          left: PADDING_LEFT + 14,
           width: usableWidth,
           height: usableHeight,
           flexDirection: 'row',
@@ -137,9 +168,9 @@ export const SimpleBarChart: React.FC<Props> = ({
         {safePeriods.map((_, idx) => (
           <TouchableOpacity
             key={`touch-${idx}`}
-            style={{ width: colWidth, height: usableHeight }}
+            style={{ flex: 1, height: '100%' }}
             onPress={() => setSelectedIndex(selectedIndex === idx ? null : idx)}
-            activeOpacity={0.6}
+            activeOpacity={0.4}
           />
         ))}
       </View>

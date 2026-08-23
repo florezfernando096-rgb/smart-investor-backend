@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Dimensions, TouchableOpacity } from 'react-native';
 import Svg, { Path, Line, Text as SvgText, Circle } from 'react-native-svg';
 import { createLinePath, sanitizeNumber, formatXAxisLabel } from './SvgChartUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface LineSeries {
   label: string;
@@ -32,12 +33,13 @@ export const MultiLineChart: React.FC<Props> = ({
   suffix = '%',
   autoscale = true,
 }) => {
+  const { colors, isDark } = useTheme();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const safePeriods = periods || [];
   const safeSeries = (series || []).map(s => ({
     label: s?.label || '',
-    color: s?.color || '#38bdf8',
+    color: s?.color || colors.chartPrimary,
     values: (s?.values || []).map(v => sanitizeNumber(v, 0)),
   }));
 
@@ -45,11 +47,9 @@ export const MultiLineChart: React.FC<Props> = ({
 
   const allVals = safeSeries.flatMap(s => s.values);
   
-  // Escalado Dinámico: Si autoscale es true, tomar el min real con margen del 5%
   const actualMin = Math.min(...allVals);
   const actualMax = Math.max(...allVals);
   
-  // Si los valores no son todos cero, usar escala dinámica para apreciar recompras/dilución
   let minVal = 0;
   let maxVal = 100;
   if (autoscale && allVals.length > 0 && actualMax !== actualMin) {
@@ -70,25 +70,52 @@ export const MultiLineChart: React.FC<Props> = ({
   const activePeriod = selectedIndex !== null ? safePeriods[selectedIndex] : null;
 
   return (
-    <View className="bg-[#0f172a] rounded-2xl p-3.5 mb-3 border border-slate-800 shadow-md">
+    <View
+      style={{
+        backgroundColor: colors.cardBg,
+        borderColor: colors.cardBorder,
+        shadowColor: colors.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowRadius: 3,
+        elevation: 1.5,
+      }}
+      className="rounded-2xl p-3.5 mb-3 border"
+    >
       {/* 1. Título */}
-      <Text className="text-xs font-black text-slate-200 mb-1.5">{title}</Text>
+      <Text style={{ color: colors.textPrimary }} className="text-xs font-black mb-1.5">
+        {title}
+      </Text>
 
       {/* 2. Leyendas en Fila Separada */}
       <View className="flex-row items-center justify-between mb-2 flex-wrap">
         <View className="flex-row items-center flex-wrap">
           {safeSeries.map((s, idx) => (
-            <View key={`s-lbl-${idx}`} className="flex-row items-center mr-2 mb-1 bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-800">
+            <View
+              key={`s-lbl-${idx}`}
+              style={{
+                backgroundColor: colors.pillBg,
+                borderColor: colors.pillBorder,
+              }}
+              className="flex-row items-center mr-2 mb-1 px-2 py-0.5 rounded-md border"
+            >
               <View className="w-2.5 h-0.5 mr-1.5" style={{ backgroundColor: s.color }} />
-              <Text className="text-[10px] font-semibold text-slate-400">{s.label}</Text>
+              <Text style={{ color: colors.textSecondary }} className="text-[10px] font-semibold">
+                {s.label}
+              </Text>
             </View>
           ))}
         </View>
 
         {/* Tooltip con Valor Seleccionado */}
         {activePeriod && (
-          <View className="bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-500/40">
-            <Text className="text-[10px] font-bold text-indigo-300">
+          <View
+            style={{
+              backgroundColor: colors.tooltipBg,
+            }}
+            className="px-2 py-0.5 rounded shadow-sm"
+          >
+            <Text style={{ color: colors.tooltipText }} className="text-[10px] font-bold">
               {`${activePeriod}: `}
               {safeSeries.map(s => `${s.values[selectedIndex || 0]?.toFixed(1)}${suffix}`).join(' | ')}
             </Text>
@@ -102,31 +129,50 @@ export const MultiLineChart: React.FC<Props> = ({
           y1={CHART_HEIGHT - PADDING_BOTTOM}
           x2={CHART_WIDTH - PADDING_RIGHT}
           y2={CHART_HEIGHT - PADDING_BOTTOM}
-          stroke="#334155"
+          stroke={colors.gridLine}
         />
 
+        {/* Eje X */}
+        {safePeriods.map((period, idx) => {
+          const isSelected = selectedIndex === idx;
+          const x = PADDING_LEFT + idx * stepX;
+          return (
+            <SvgText
+              key={`lbl-${idx}`}
+              x={x}
+              y={CHART_HEIGHT - 10}
+              fontSize="9"
+              fontWeight={isSelected ? 'bold' : 'normal'}
+              fill={isSelected ? colors.textPrimary : colors.textSecondary}
+              textAnchor="middle"
+            >
+              {formatXAxisLabel(period, idx, count)}
+            </SvgText>
+          );
+        })}
+
+        {/* Líneas y Puntos */}
         {safeSeries.map((s, sIdx) => {
-          const points = s.values.map((v, pIdx) => {
-            const x = PADDING_LEFT + pIdx * stepX;
-            const y = PADDING_TOP + usableHeight - ((v - minVal) / valRange) * usableHeight;
-            return { x, y };
-          });
+          const points = s.values.map((v, idx) => ({
+            x: PADDING_LEFT + idx * stepX,
+            y: PADDING_TOP + usableHeight - ((v - minVal) / valRange) * usableHeight,
+          }));
 
           const path = createLinePath(points);
 
           return (
-            <React.Fragment key={`s-line-${sIdx}`}>
-              <Path d={path} fill="none" stroke={s.color} strokeWidth={2.2} />
-              {points.map((pt, ptIdx) => {
-                const isSelected = selectedIndex === ptIdx;
+            <React.Fragment key={`series-path-${sIdx}`}>
+              <Path d={path} fill="none" stroke={s.color} strokeWidth={2.4} strokeLinecap="round" />
+              {points.map((pt, pIdx) => {
+                const isSelected = selectedIndex === pIdx;
                 return (
                   <Circle
-                    key={`pt-${sIdx}-${ptIdx}`}
+                    key={`pt-${sIdx}-${pIdx}`}
                     cx={pt.x}
                     cy={pt.y}
-                    r={isSelected ? 5 : 3}
-                    fill={isSelected ? '#ffffff' : s.color}
-                    stroke="#0f172a"
+                    r={isSelected ? 4.5 : 2.5}
+                    fill={isSelected ? '#FFFFFF' : s.color}
+                    stroke={s.color}
                     strokeWidth={isSelected ? 2 : 1}
                   />
                 );
@@ -134,33 +180,14 @@ export const MultiLineChart: React.FC<Props> = ({
             </React.Fragment>
           );
         })}
-
-        {safePeriods.map((period, idx) => {
-          const label = formatXAxisLabel(period, idx, count);
-          if (!label) return null;
-          const x = PADDING_LEFT + idx * stepX;
-          return (
-            <SvgText
-              key={`lbl-${idx}`}
-              x={x}
-              y={CHART_HEIGHT - 8}
-              fontSize="8.5"
-              fontWeight={selectedIndex === idx ? 'bold' : 'normal'}
-              fill={selectedIndex === idx ? '#38bdf8' : '#94a3b8'}
-              textAnchor="middle"
-            >
-              {label}
-            </SvgText>
-          );
-        })}
       </Svg>
 
-      {/* Áreas táctiles transparentes */}
+      {/* Capa de Toque Invisible */}
       <View
         style={{
           position: 'absolute',
-          top: 60,
-          left: PADDING_LEFT + 8,
+          top: PADDING_TOP + 40,
+          left: PADDING_LEFT + 14,
           width: usableWidth,
           height: usableHeight,
           flexDirection: 'row',
@@ -169,9 +196,9 @@ export const MultiLineChart: React.FC<Props> = ({
         {safePeriods.map((_, idx) => (
           <TouchableOpacity
             key={`touch-${idx}`}
-            style={{ width: count > 1 ? stepX : usableWidth, height: usableHeight }}
+            style={{ flex: 1, height: '100%' }}
             onPress={() => setSelectedIndex(selectedIndex === idx ? null : idx)}
-            activeOpacity={0.6}
+            activeOpacity={0.4}
           />
         ))}
       </View>

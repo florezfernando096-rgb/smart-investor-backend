@@ -1,5 +1,18 @@
-import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  Keyboard,
+} from 'react-native';
+import {
+  searchStockSymbols,
+  syncSymbolsInBackground,
+  StockSymbolItem,
+} from '../services/symbolSearchService';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   onSearch: (symbol: string) => void;
@@ -7,43 +20,149 @@ interface Props {
   activeSymbol: string;
 }
 
-const QUICK_TICKERS = ['MSFT', 'NVDA', 'AAPL', 'UBER', 'TSLA', 'DEMO'];
+const QUICK_TICKERS = ['MSFT', 'NVDA', 'AAPL', 'MELI', 'TSLA', 'AMZN', 'GOOGL', 'META'];
 
 export const SearchBar: React.FC<Props> = ({ onSearch, loading, activeSymbol }) => {
+  const { colors, isDark } = useTheme();
   const [text, setText] = useState('');
+  const [suggestions, setSuggestions] = useState<StockSymbolItem[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
+    syncSymbolsInBackground();
+  }, []);
+
+  const handleTextChange = (val: string) => {
+    setText(val);
+    if (val.trim().length > 0) {
+      const results = searchStockSymbols(val, 7);
+      setSuggestions(results);
+      setShowDropdown(results.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowDropdown(false);
+    }
+  };
+
+  const handleSelectSymbol = (selectedSymbol: string) => {
+    setText(selectedSymbol);
+    setShowDropdown(false);
+    Keyboard.dismiss();
+    onSearch(selectedSymbol);
+  };
 
   const handleSearchSubmit = () => {
     if (text.trim()) {
+      setShowDropdown(false);
+      Keyboard.dismiss();
       onSearch(text.trim().toUpperCase());
     }
   };
 
+  const handleClear = () => {
+    setText('');
+    setSuggestions([]);
+    setShowDropdown(false);
+  };
+
   return (
-    <View className="mb-4">
+    <View className="mb-3 z-50">
       {/* Input de Búsqueda */}
-      <View className="flex-row items-center bg-[#0f172a] rounded-2xl px-4 py-2.5 border border-slate-800 shadow-md">
-        <Text className="text-slate-400 mr-2 text-base">🔍</Text>
+      <View
+        style={{
+          backgroundColor: colors.cardBg,
+          borderColor: colors.cardBorder,
+          shadowColor: colors.shadowColor,
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDark ? 0.3 : 0.06,
+          shadowRadius: 3,
+          elevation: 2,
+        }}
+        className="flex-row items-center rounded-2xl px-3.5 py-2.5 border"
+      >
+        <Text className="mr-2 text-base" style={{ color: colors.textSecondary }}>
+          🔍
+        </Text>
         <TextInput
-          className="flex-1 text-white font-semibold text-base"
-          placeholder="Buscar ticker (ej. MSFT, AAPL, NVDA)..."
-          placeholderTextColor="#64748b"
+          style={{ color: colors.textPrimary }}
+          className="flex-1 font-semibold text-sm"
+          placeholder="Buscar acción o empresa (ej. MSFT, Apple)..."
+          placeholderTextColor={colors.textMuted}
           value={text}
-          onChangeText={setText}
+          onChangeText={handleTextChange}
           onSubmitEditing={handleSearchSubmit}
           autoCapitalize="characters"
           returnKeyType="search"
+          autoCorrect={false}
         />
+
+        {text.length > 0 && !loading && (
+          <TouchableOpacity onPress={handleClear} className="p-1 mr-1">
+            <Text style={{ color: colors.textMuted }} className="text-xs font-bold">
+              ✕
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {loading ? (
-          <ActivityIndicator size="small" color="#38bdf8" />
+          <ActivityIndicator size="small" color={colors.chartPrimary} />
         ) : (
           <TouchableOpacity
             onPress={handleSearchSubmit}
-            className="bg-indigo-600 px-3 py-1.5 rounded-xl ml-2"
+            className="bg-indigo-600 px-3.5 py-1.5 rounded-xl ml-1 active:bg-indigo-700"
           >
             <Text className="text-white text-xs font-bold">Buscar</Text>
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Lista Desplegable de Autocompletado Instantáneo */}
+      {showDropdown && suggestions.length > 0 && (
+        <View
+          style={{
+            backgroundColor: colors.cardBg,
+            borderColor: colors.cardBorder,
+            shadowColor: colors.shadowColor,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: isDark ? 0.4 : 0.1,
+            shadowRadius: 8,
+            elevation: 5,
+          }}
+          className="rounded-2xl border mt-1.5 overflow-hidden z-50"
+        >
+          {suggestions.map((item, idx) => (
+            <TouchableOpacity
+              key={`sug-${item.symbol}-${idx}`}
+              onPress={() => handleSelectSymbol(item.symbol)}
+              activeOpacity={0.7}
+              style={{
+                borderBottomColor: colors.gridLine,
+              }}
+              className={`flex-row items-center justify-between p-3 ${
+                idx !== suggestions.length - 1 ? 'border-b' : ''
+              }`}
+            >
+              <View className="flex-row items-center flex-1 mr-2">
+                <View className="bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/25 mr-2">
+                  <Text className="text-indigo-600 dark:text-indigo-300 font-extrabold text-xs font-mono">
+                    {item.symbol}
+                  </Text>
+                </View>
+                <Text
+                  style={{ color: colors.textPrimary }}
+                  className="text-xs font-semibold flex-1"
+                  numberOfLines={1}
+                >
+                  {item.name}
+                </Text>
+              </View>
+              <Text style={{ color: colors.textMuted }} className="text-xs">
+                ➔
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Quick Pills */}
       <View className="flex-row flex-wrap mt-2">
@@ -52,17 +171,19 @@ export const SearchBar: React.FC<Props> = ({ onSearch, loading, activeSymbol }) 
           return (
             <TouchableOpacity
               key={ticker}
-              onPress={() => onSearch(ticker)}
-              className={`px-3 py-1 rounded-full mr-2 mb-1 border ${
-                isActive
-                  ? 'bg-indigo-600/30 border-indigo-500'
-                  : 'bg-slate-900 border-slate-800'
-              }`}
+              onPress={() => handleSelectSymbol(ticker)}
+              style={{
+                backgroundColor: isActive ? 'rgba(79, 70, 229, 0.15)' : colors.pillBg,
+                borderColor: isActive ? '#6366F1' : colors.pillBorder,
+              }}
+              className="px-3 py-1 rounded-full mr-2 mb-1 border"
             >
               <Text
-                className={`text-xs font-semibold ${
-                  isActive ? 'text-indigo-400 font-bold' : 'text-slate-400'
-                }`}
+                style={{
+                  color: isActive ? '#4F46E5' : colors.textSecondary,
+                  fontWeight: isActive ? 'bold' : '600',
+                }}
+                className="text-xs"
               >
                 ${ticker}
               </Text>

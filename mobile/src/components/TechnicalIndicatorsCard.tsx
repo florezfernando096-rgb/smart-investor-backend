@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { TechnicalIndicatorsData } from '../types/dashboard';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   data: TechnicalIndicatorsData;
@@ -12,25 +13,42 @@ function fmtVal(v: any, decimals: number, fallback: string): string {
 }
 
 export const TechnicalIndicatorsCard: React.FC<Props> = ({ data }) => {
+  const { colors, isDark } = useTheme();
+
   if (!data) return null;
 
   const rsi = data.rsi || { value: 50, status: 'Neutral', color: '#38bdf8' };
   const rsiVal = Number(rsi.value) || 50;
-  const rsiColor = rsiVal >= 70 ? '#ef4444' : rsiVal <= 30 ? '#10b981' : '#38bdf8';
+  const rsiColor = rsiVal >= 70 ? colors.negative : rsiVal <= 30 ? colors.positive : colors.chartPrimary;
 
   const renderMaItem = (label: string, item: { value: number; diff_pct: number; bullish: boolean }) => {
     const isBull = !!item?.bullish;
     const diffPct = Number(item?.diff_pct) || 0;
     const diffSign = diffPct >= 0 ? '+' : '';
     return (
-      <View className="flex-1 bg-slate-900/60 rounded-xl p-2.5 mx-1 border border-slate-800/80 items-center">
-        <Text className="text-[10px] font-semibold text-slate-400 uppercase mb-0.5">
+      <View
+        style={{
+          backgroundColor: colors.cardBgSubtle,
+          borderColor: colors.cardBorder,
+        }}
+        className="flex-1 rounded-xl p-2.5 mx-1 border items-center"
+      >
+        <Text
+          style={{ color: colors.textSecondary }}
+          className="text-[10px] font-semibold uppercase mb-0.5"
+        >
           {label}
         </Text>
-        <Text className="text-xs font-bold text-white mb-0.5">
+        <Text
+          style={{ color: colors.textPrimary }}
+          className="text-xs font-bold mb-0.5"
+        >
           ${fmtVal(item?.value, 2, '0.00')}
         </Text>
-        <Text className={`text-[10px] font-bold ${isBull ? 'text-emerald-400' : 'text-rose-400'}`}>
+        <Text
+          style={{ color: isBull ? colors.positive : colors.negative }}
+          className="text-[10px] font-extrabold"
+        >
           {`${diffSign}${fmtVal(item?.diff_pct, 1, '0.0')}%`}
         </Text>
       </View>
@@ -38,15 +56,37 @@ export const TechnicalIndicatorsCard: React.FC<Props> = ({ data }) => {
   };
 
   return (
-    <View className="bg-[#0f172a] rounded-2xl p-4 border border-slate-800 shadow-lg my-2">
-      <Text className="text-sm font-extrabold text-white uppercase tracking-wider mb-3">
+    <View
+      style={{
+        backgroundColor: colors.cardBg,
+        borderColor: colors.cardBorder,
+        shadowColor: colors.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+      }}
+      className="rounded-2xl p-4 border my-2"
+    >
+      <Text
+        style={{ color: colors.textPrimary }}
+        className="text-sm font-extrabold uppercase tracking-wider mb-3"
+      >
         🚦 Indicadores Técnicos
       </Text>
 
       {/* RSI (14) */}
-      <View className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 mb-3">
+      <View
+        style={{
+          backgroundColor: colors.cardBgSubtle,
+          borderColor: colors.cardBorder,
+        }}
+        className="rounded-xl p-3 border mb-3"
+      >
         <View className="flex-row justify-between items-center mb-1.5">
-          <Text className="text-xs font-bold text-slate-300">RSI (14)</Text>
+          <Text style={{ color: colors.textPrimary }} className="text-xs font-bold">
+            RSI (14)
+          </Text>
           <View className="flex-row items-center">
             <View
               className="w-2 h-2 rounded-full mr-1.5"
@@ -59,11 +99,14 @@ export const TechnicalIndicatorsCard: React.FC<Props> = ({ data }) => {
         </View>
 
         {/* Barra de progreso de RSI */}
-        <View className="h-2 bg-slate-800 rounded-full overflow-hidden flex-row">
+        <View
+          style={{ backgroundColor: colors.gridLine }}
+          className="h-2 rounded-full overflow-hidden flex-row"
+        >
           {/* Zona Sobreventa (0 - 30) */}
-          <View className="flex-[30] bg-emerald-500/30 border-r border-slate-700" />
+          <View className="flex-[30] bg-emerald-500/30" />
           {/* Zona Neutral (30 - 70) */}
-          <View className="flex-[40] bg-sky-500/20 border-r border-slate-700" />
+          <View className="flex-[40] bg-sky-500/20" />
           {/* Zona Sobrecompra (70 - 100) */}
           <View className="flex-[30] bg-rose-500/30" />
         </View>

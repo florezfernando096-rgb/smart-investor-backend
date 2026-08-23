@@ -34,20 +34,43 @@ import { ValuationRatiosGrid } from '../components/charts/ValuationRatiosGrid';
 import { EstimatesTable } from '../components/EstimatesTable';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import {
+  isStockInWatchlist,
+  addToWatchlist,
+  removeFromWatchlist,
+} from '../services/watchlistService';
 
-export const DashboardScreen: React.FC = () => {
+interface Props {
+  selectedSymbol?: string;
+  onWatchlistChanged?: () => void;
+}
+
+export const DashboardScreen: React.FC<Props> = ({
+  selectedSymbol,
+  onWatchlistChanged,
+}) => {
   const { isDark, colors, toggleTheme } = useTheme();
-  const [symbol, setSymbol] = useState('MSFT');
+  const { user, signOut, isDemoUser } = useAuth();
+
+  const [symbol, setSymbol] = useState(selectedSymbol || 'MSFT');
   const [periodType, setPeriodType] = useState<'annual' | 'quarterly'>('annual');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [sourceMode, setSourceMode] = useState<'cloud' | 'local' | 'direct' | 'demo'>('cloud');
+  const [isWatchlisted, setIsWatchlisted] = useState(false);
 
   // Modal de Configuración y Cookies
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [serverUrlInput, setServerUrlInput] = useState(getCustomServerUrl());
   const [cookieInput, setCookieInput] = useState(getActiveCookieString());
+
+  const checkWatchlistStatus = async (targetSymbol: string) => {
+    if (!user?.id) return;
+    const status = await isStockInWatchlist(user.id, targetSymbol);
+    setIsWatchlisted(status);
+  };
 
   const loadData = async (targetSymbol: string, targetPeriod: 'annual' | 'quarterly') => {
     setLoading(true);
@@ -57,6 +80,7 @@ export const DashboardScreen: React.FC = () => {
         setData(result.data);
         setSourceMode(result.source);
       }
+      await checkWatchlistStatus(targetSymbol);
     } catch (err) {
       console.warn('Error cargando dashboard:', err);
     } finally {
@@ -66,8 +90,13 @@ export const DashboardScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData(symbol, periodType);
-  }, []);
+    if (selectedSymbol && selectedSymbol !== symbol) {
+      setSymbol(selectedSymbol);
+      loadData(selectedSymbol, periodType);
+    } else {
+      loadData(symbol, periodType);
+    }
+  }, [selectedSymbol]);
 
   const handleSearch = (newSymbol: string) => {
     setSymbol(newSymbol);
@@ -84,6 +113,35 @@ export const DashboardScreen: React.FC = () => {
     loadData(symbol, periodType);
   };
 
+  const handleToggleWatchlist = async () => {
+    if (!user?.id) {
+      Alert.alert('Inicia Sesión', 'Debes iniciar sesión para guardar acciones en tu Watchlist.');
+      return;
+    }
+
+    if (isWatchlisted) {
+      setIsWatchlisted(false);
+      await removeFromWatchlist(user.id, symbol);
+      if (onWatchlistChanged) onWatchlistChanged();
+    } else {
+      setIsWatchlisted(true);
+      const fairValNum = Number(data?.fair_value?.consensus_fair_value) || 0;
+      const fwdPeNum = Number(data?.estimates?.metrics?.find(m => m.label.includes('Forward P/E'))?.values?.[0]?.replace('x', '')) || 0;
+
+      await addToWatchlist({
+        user_id: user.id,
+        symbol: symbol.toUpperCase(),
+        company_name: data?.company_name || symbol,
+        price: data?.price_header?.price || 0,
+        change: data?.price_header?.change || 0,
+        change_percent: data?.price_header?.change_percent || 0,
+        fair_value: fairValNum,
+        forward_pe: fwdPeNum,
+      });
+      if (onWatchlistChanged) onWatchlistChanged();
+    }
+  };
+
   const handleSaveSettings = () => {
     if (serverUrlInput.trim()) {
       setCustomServerUrl(serverUrlInput.trim());
@@ -94,6 +152,17 @@ export const DashboardScreen: React.FC = () => {
     loadData(symbol, periodType);
   };
 
+  const handleLogout = () => {
+    Alert.alert('Cerrar Sesión', '¿Estás seguro de que deseas salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar Sesión',
+        style: 'destructive',
+        onPress: () => signOut(),
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={{ backgroundColor: colors.bg }} className="flex-1">
       <StatusBar
@@ -101,7 +170,7 @@ export const DashboardScreen: React.FC = () => {
         backgroundColor={colors.bg}
       />
 
-      {/* Header Fijo con Marca, Toggle Theme y Botón de Ajustes */}
+      {/* Header Fijo con Marca, Toggle Theme, Estado Cloud y Logout */}
       <View
         style={{
           backgroundColor: colors.cardBg,
@@ -127,7 +196,7 @@ export const DashboardScreen: React.FC = () => {
               backgroundColor: colors.pillBg,
               borderColor: colors.pillBorder,
             }}
-            className="w-8 h-8 rounded-full items-center justify-center mr-2 border active:opacity-70"
+            className="w-8 h-8 rounded-full items-center justify-center mr-1.5 border active:opacity-70"
           >
             <Text className="text-sm">{isDark ? '☀️' : '🌙'}</Text>
           </TouchableOpacity>
@@ -139,10 +208,10 @@ export const DashboardScreen: React.FC = () => {
               backgroundColor: colors.pillBg,
               borderColor: colors.pillBorder,
             }}
-            className="flex-row items-center px-2.5 py-1 rounded-full border active:opacity-70"
+            className="flex-row items-center px-2 py-1 rounded-full border mr-1.5 active:opacity-70"
           >
             <View
-              className={`w-2 h-2 rounded-full mr-1.5 ${
+              className={`w-2 h-2 rounded-full mr-1 ${
                 sourceMode === 'cloud'
                   ? 'bg-emerald-500'
                   : sourceMode === 'local'
@@ -154,16 +223,28 @@ export const DashboardScreen: React.FC = () => {
             />
             <Text
               style={{ color: colors.textSecondary }}
-              className="text-[11px] font-bold"
+              className="text-[10px] font-bold"
             >
               {sourceMode === 'cloud'
-                ? 'Cloud HTTPS'
+                ? 'Cloud'
                 : sourceMode === 'local'
-                ? 'Backend Local'
+                ? 'Local'
                 : sourceMode === 'direct'
-                ? 'Scraper Directo'
-                : 'Demo Mode'}
+                ? 'Scraper'
+                : 'Demo'}
             </Text>
+          </TouchableOpacity>
+
+          {/* Botón Logout */}
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={{
+              backgroundColor: colors.pillBg,
+              borderColor: colors.pillBorder,
+            }}
+            className="w-8 h-8 rounded-full items-center justify-center border active:opacity-70"
+          >
+            <Text className="text-xs">🚪</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -191,11 +272,13 @@ export const DashboardScreen: React.FC = () => {
 
           {data && (
             <>
-              {/* B. Cabecera de Precio */}
+              {/* B. Cabecera de Precio con Botón de Watchlist */}
               <PriceHeader
                 symbol={data?.symbol || symbol}
                 companyName={data?.company_name || symbol}
                 data={data?.price_header}
+                isWatchlisted={isWatchlisted}
+                onToggleWatchlist={handleToggleWatchlist}
               />
 
               {/* Gráfico de Precio Interactivo (1Y / 10Y con Min/Max) */}

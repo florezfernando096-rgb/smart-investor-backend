@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Dimensions, TouchableOpacity } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import { sanitizeNumber, formatXAxisLabel } from './SvgChartUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   title: string;
@@ -24,6 +25,7 @@ export const GroupedBarChart: React.FC<Props> = ({
   series1,
   series2,
 }) => {
+  const { colors, isDark } = useTheme();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const safePeriods = periods || [];
@@ -45,28 +47,65 @@ export const GroupedBarChart: React.FC<Props> = ({
   const activeV1 = selectedIndex !== null ? s1Vals[selectedIndex] : null;
   const activeV2 = selectedIndex !== null ? s2Vals[selectedIndex] : null;
 
+  const c1 = series1?.color || colors.chartPrimary;
+  const c2 = series2?.color || colors.chartPurple;
+
   return (
-    <View className="bg-[#0f172a] rounded-2xl p-3.5 mb-3 border border-slate-800 shadow-md">
+    <View
+      style={{
+        backgroundColor: colors.cardBg,
+        borderColor: colors.cardBorder,
+        shadowColor: colors.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowRadius: 3,
+        elevation: 1.5,
+      }}
+      className="rounded-2xl p-3.5 mb-3 border"
+    >
       {/* 1. Título */}
-      <Text className="text-xs font-black text-slate-200 mb-1.5">{title}</Text>
+      <Text style={{ color: colors.textPrimary }} className="text-xs font-black mb-1.5">
+        {title}
+      </Text>
 
       {/* 2. Leyendas en Fila Separada */}
       <View className="flex-row items-center justify-between mb-2 flex-wrap">
         <View className="flex-row items-center">
-          <View className="flex-row items-center mr-3 bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-800">
-            <View className="w-2 h-2 rounded-sm mr-1.5" style={{ backgroundColor: series1?.color || '#38bdf8' }} />
-            <Text className="text-[10px] font-semibold text-slate-400">{series1?.label || 'Serie 1'}</Text>
+          <View
+            style={{
+              backgroundColor: colors.pillBg,
+              borderColor: colors.pillBorder,
+            }}
+            className="flex-row items-center mr-3 px-2 py-0.5 rounded-md border"
+          >
+            <View className="w-2 h-2 rounded-sm mr-1.5" style={{ backgroundColor: c1 }} />
+            <Text style={{ color: colors.textSecondary }} className="text-[10px] font-semibold">
+              {series1?.label || 'Serie 1'}
+            </Text>
           </View>
-          <View className="flex-row items-center bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-800">
-            <View className="w-2 h-2 rounded-sm mr-1.5" style={{ backgroundColor: series2?.color || '#10b981' }} />
-            <Text className="text-[10px] font-semibold text-slate-400">{series2?.label || 'Serie 2'}</Text>
+          <View
+            style={{
+              backgroundColor: colors.pillBg,
+              borderColor: colors.pillBorder,
+            }}
+            className="flex-row items-center px-2 py-0.5 rounded-md border"
+          >
+            <View className="w-2 h-2 rounded-sm mr-1.5" style={{ backgroundColor: c2 }} />
+            <Text style={{ color: colors.textSecondary }} className="text-[10px] font-semibold">
+              {series2?.label || 'Serie 2'}
+            </Text>
           </View>
         </View>
 
         {/* Tooltip con Valor Seleccionado */}
         {activePeriod && (
-          <View className="bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-500/40">
-            <Text className="text-[10px] font-bold text-indigo-300">
+          <View
+            style={{
+              backgroundColor: colors.tooltipBg,
+            }}
+            className="px-2 py-0.5 rounded shadow-sm"
+          >
+            <Text style={{ color: colors.tooltipText }} className="text-[10px] font-bold">
               {`${activePeriod}: ${activeV1?.toFixed(1)} | ${activeV2?.toFixed(1)}`}
             </Text>
           </View>
@@ -79,7 +118,7 @@ export const GroupedBarChart: React.FC<Props> = ({
           y1={CHART_HEIGHT - PADDING_BOTTOM}
           x2={CHART_WIDTH - PADDING_RIGHT}
           y2={CHART_HEIGHT - PADDING_BOTTOM}
-          stroke="#334155"
+          stroke={colors.gridLine}
         />
 
         {safePeriods.map((_, idx) => {
@@ -98,53 +137,45 @@ export const GroupedBarChart: React.FC<Props> = ({
               {/* Barra 1 */}
               <Rect
                 x={x1}
-                y={CHART_HEIGHT - PADDING_BOTTOM - h1}
+                y={PADDING_TOP + usableHeight - h1}
                 width={singleBarWidth}
                 height={Math.max(2, h1)}
-                rx={2}
-                fill={series1?.color || '#38bdf8'}
+                rx={2.5}
+                fill={c1}
                 opacity={isSelected ? 1 : 0.85}
               />
               {/* Barra 2 */}
               <Rect
                 x={x2}
-                y={CHART_HEIGHT - PADDING_BOTTOM - h2}
+                y={PADDING_TOP + usableHeight - h2}
                 width={singleBarWidth}
                 height={Math.max(2, h2)}
-                rx={2}
-                fill={series2?.color || '#10b981'}
+                rx={2.5}
+                fill={c2}
                 opacity={isSelected ? 1 : 0.85}
               />
+              {/* Etiqueta X */}
+              <SvgText
+                x={groupCenterX}
+                y={CHART_HEIGHT - 10}
+                fontSize="9"
+                fontWeight={isSelected ? 'bold' : 'normal'}
+                fill={isSelected ? colors.textPrimary : colors.textSecondary}
+                textAnchor="middle"
+              >
+                {formatXAxisLabel(safePeriods[idx], idx, count)}
+              </SvgText>
             </React.Fragment>
-          );
-        })}
-
-        {safePeriods.map((period, idx) => {
-          const label = formatXAxisLabel(period, idx, count);
-          if (!label) return null;
-          const x = PADDING_LEFT + idx * groupWidth + groupWidth / 2;
-          return (
-            <SvgText
-              key={`lbl-${idx}`}
-              x={x}
-              y={CHART_HEIGHT - 8}
-              fontSize="8.5"
-              fontWeight={selectedIndex === idx ? 'bold' : 'normal'}
-              fill={selectedIndex === idx ? '#38bdf8' : '#94a3b8'}
-              textAnchor="middle"
-            >
-              {label}
-            </SvgText>
           );
         })}
       </Svg>
 
-      {/* Áreas táctiles transparentes */}
+      {/* Capa de Toque Invisible */}
       <View
         style={{
           position: 'absolute',
-          top: 60,
-          left: PADDING_LEFT + 12,
+          top: PADDING_TOP + 40,
+          left: PADDING_LEFT + 14,
           width: usableWidth,
           height: usableHeight,
           flexDirection: 'row',
@@ -153,9 +184,9 @@ export const GroupedBarChart: React.FC<Props> = ({
         {safePeriods.map((_, idx) => (
           <TouchableOpacity
             key={`touch-${idx}`}
-            style={{ width: groupWidth, height: usableHeight }}
+            style={{ flex: 1, height: '100%' }}
             onPress={() => setSelectedIndex(selectedIndex === idx ? null : idx)}
-            activeOpacity={0.6}
+            activeOpacity={0.4}
           />
         ))}
       </View>
