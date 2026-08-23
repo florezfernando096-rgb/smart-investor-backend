@@ -1000,17 +1000,63 @@ class SmartInvestorScraper:
         cf_data = base_data.get("cash_flow", {})
         text = base_data.get("metrics_html", "")
 
-        # Helper para extraer variables de JS con regex rápido
+        # Helper para extraer variables de JS multi-línea con corchetes balanceados
         def extract_js_var(name, src_text):
-            m = re.search(rf'(?:var|let|const)\s+{re.escape(name)}\s*=\s*([^\n;]+);', src_text)
-            if m:
-                raw = m.group(1).strip()
-                cleaned = re.sub(r"Decimal\(['\"]?([-\d\.]+)['\"]?\)", r"\1", raw)
-                try:
-                    return eval(cleaned, {"null": None, "true": True, "false": False, "nan": None, "Decimal": float})
-                except Exception:
-                    return None
-            return None
+            m = re.search(rf'(?:var|let|const)\s+{re.escape(name)}\s*=', src_text)
+            if not m:
+                return None
+            start_idx = m.end()
+            while start_idx < len(src_text) and src_text[start_idx] in ' \t\r\n':
+                start_idx += 1
+            if start_idx >= len(src_text):
+                return None
+            opener = src_text[start_idx]
+            if opener not in ('[', '{'):
+                # Intentar captura de línea simple si es primitivo
+                line_m = re.search(rf'(?:var|let|const)\s+{re.escape(name)}\s*=\s*([^\n;]+);', src_text)
+                if line_m:
+                    raw = line_m.group(1).strip()
+                    cleaned = re.sub(r"Decimal\(['\"]?([-\d\.]+)['\"]?\)", r"\1", raw)
+                    try:
+                        return eval(cleaned, {"null": None, "true": True, "false": False, "nan": None, "Decimal": float})
+                    except Exception:
+                        return None
+                return None
+
+            closer = ']' if opener == '[' else '}'
+            depth = 0
+            in_str = False
+            str_char = ''
+            escape = False
+            end_idx = start_idx
+            for i in range(start_idx, len(src_text)):
+                ch = src_text[i]
+                if escape:
+                    escape = False
+                    continue
+                if ch == '\\':
+                    escape = True
+                    continue
+                if in_str:
+                    if ch == str_char:
+                        in_str = False
+                else:
+                    if ch in ('"', "'"):
+                        in_str = True
+                        str_char = ch
+                    elif ch == opener:
+                        depth += 1
+                    elif ch == closer:
+                        depth -= 1
+                        if depth == 0:
+                            end_idx = i + 1
+                            break
+            raw = src_text[start_idx:end_idx]
+            raw = re.sub(r"Decimal\(['\"]?([-\d\.]+)['\"]?\)", r"\1", raw)
+            try:
+                return eval(raw, {"null": None, "true": True, "false": False, "nan": None, "Decimal": float, "None": None, "True": True, "False": False})
+            except Exception:
+                return None
 
         profile_raw = extract_js_var("company_profile", text) or [{}]
         profile = profile_raw[0] if profile_raw else {}
