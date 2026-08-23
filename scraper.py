@@ -1342,40 +1342,98 @@ class SmartInvestorScraper:
             "debt_equity": {"label": "Debt / Equity", "data": get_rh_series("debtEquityRatio", "debtEquityRatioTTM", [0.65, 0.58, 0.52, 0.48, 0.44, 0.41, 0.40, 0.38, 0.35, 0.32])}
         }
 
-        # ── 7. Estimates (3 Gráficas de Proyección) ─────────────────────
+        # ── 7. Estimates (Tabla de Proyecciones Futuras > Año Actual) ──────────
         est_obj = base_data.get("estimates") or {}
-        est_periods = est_obj.get("periods", ["2022", "2023", "2024", "2025", "2026", "2027E", "2028E", "2029E", "2030E", "2031E", "Growth"])
+        periods_all = est_obj.get("periods", ["2022", "2023", "2024", "2025", "2026", "2027E", "2028E", "2029E", "2030E", "2031E", "Growth"])
+        rows_all = est_obj.get("rows", [])
+        curr_year = datetime.datetime.now().year
 
-        # E1. Multi-line Growth Projection
-        est_rev = estimates.get("estimates_rev", [391079, 468010, 567245, 656877, 738368])
-        est_ebitda = estimates.get("estimates_ebitda", [239933, 295378, 369739, 440657, 449957])
-        est_net = estimates.get("estimates_net_income", [146857, 175384, 213617, 253691, 305911])
+        target_indices = []
+        filtered_periods = []
+        for i, p in enumerate(periods_all):
+            p_clean = p.replace("E", "").replace("e", "").strip()
+            if p_clean.isdigit():
+                if int(p_clean) > curr_year:
+                    target_indices.append(i)
+                    filtered_periods.append(p)
+            elif any(k in p.lower() for k in ["growth", "cagr", "avg"]):
+                target_indices.append(i)
+                filtered_periods.append(p)
 
-        # E2. Forward Valuation
+        if not filtered_periods:
+            filtered_periods = ["2027E", "2028E", "2029E", "2030E", "2031E", "Growth"]
+            target_indices = list(range(max(0, len(periods_all) - 6), len(periods_all)))
+
+        # Extraer filas nominales y sus filas YoY correspondientes
+        metrics_table = []
+        i = 0
+        while i < len(rows_all):
+            row_val = rows_all[i]
+            row_yoy = rows_all[i + 1] if (i + 1 < len(rows_all) and "% Change" in rows_all[i + 1].get("metric", "")) else None
+
+            val_filtered = [row_val.get("values", [])[idx] if idx < len(row_val.get("values", [])) else "—" for idx in target_indices]
+            yoy_filtered = [row_yoy.get("values", [])[idx] if row_yoy and idx < len(row_yoy.get("values", [])) else "—" for idx in target_indices]
+
+            metrics_table.append({
+                "label": row_val.get("metric", ""),
+                "values": val_filtered,
+                "yoy": yoy_filtered
+            })
+            i += 2 if row_yoy else 1
+
+        # Agregar fila de Forward P/E calculada si tenemos EPS
         est_eps = estimates.get("estimates_eps", [19.69, 23.62, 28.76, 34.06, 41.46])
-        fwd_pe_series = [round(curr_price / eps, 2) if eps else 0.0 for eps in est_eps]
+        fwd_pe_vals = []
+        fwd_pe_yoy = []
+        prev_pe = None
+        for eps in est_eps:
+            if eps and eps > 0:
+                pe = round(curr_price / eps, 2)
+                fwd_pe_vals.append(f"{pe:.1f}x")
+                if prev_pe:
+                    diff_pct = ((pe - prev_pe) / prev_pe) * 100
+                    sign = "+" if diff_pct > 0 else ""
+                    fwd_pe_yoy.append(f"{sign}{diff_pct:.1f}%")
+                else:
+                    fwd_pe_yoy.append("—")
+                prev_pe = pe
+            else:
+                fwd_pe_vals.append("—")
+                fwd_pe_yoy.append("—")
 
-        # E3. FCF Transition
-        est_fcf = estimates.get("estimates_fcf", [32252, 45511, 87624, 112155, 156113])
-        fcf_transition_data = [round(v / 1000, 2) if v > 1000 else round(v, 2) for v in est_fcf]
+        # Ajustar longitud con la columna Growth
+        fwd_pe_vals.append("—")
+        fwd_pe_yoy.append("—")
+        if len(fwd_pe_vals) > len(filtered_periods):
+            fwd_pe_vals = fwd_pe_vals[:len(filtered_periods)]
+            fwd_pe_yoy = fwd_pe_yoy[:len(filtered_periods)]
+        elif len(fwd_pe_vals) < len(filtered_periods):
+            fwd_pe_vals += ["—"] * (len(filtered_periods) - len(fwd_pe_vals))
+            fwd_pe_yoy += ["—"] * (len(filtered_periods) - len(fwd_pe_yoy))
 
-        estimates_charts = {
-            "periods_5y": ["2027E", "2028E", "2029E", "2030E", "2031E"],
-            "chart_e1_growth": {
-                "revenues": [round(v / 1000, 2) if v > 1000 else round(v, 2) for v in est_rev],
-                "ebitda": [round(v / 1000, 2) if v > 1000 else round(v, 2) for v in est_ebitda],
-                "net_income": [round(v / 1000, 2) if v > 1000 else round(v, 2) for v in est_net],
-                "periods": ["2027E", "2028E", "2029E", "2030E", "2031E"]
-            },
-            "chart_e2_valuation": {
-                "eps_projected": est_eps,
-                "forward_pe": fwd_pe_series,
-                "periods": ["2027E", "2028E", "2029E", "2030E", "2031E"]
-            },
-            "chart_e3_fcf": {
-                "fcf_projected": fcf_transition_data,
-                "periods": ["2027E", "2028E", "2029E", "2030E", "2031E"]
-            }
+        # Insertar Forward P/E justo después de EPS
+        inserted = False
+        final_metrics = []
+        for m in metrics_table:
+            final_metrics.append(m)
+            if "eps" in m["label"].lower() and not inserted:
+                final_metrics.append({
+                    "label": "Forward P/E Ratio (Múltiplo Proyectado)",
+                    "values": fwd_pe_vals,
+                    "yoy": fwd_pe_yoy
+                })
+                inserted = True
+
+        if not inserted:
+            final_metrics.append({
+                "label": "Forward P/E Ratio (Múltiplo Proyectado)",
+                "values": fwd_pe_vals,
+                "yoy": fwd_pe_yoy
+            })
+
+        estimates_payload = {
+            "periods": filtered_periods,
+            "metrics": final_metrics
         }
 
         result = {
