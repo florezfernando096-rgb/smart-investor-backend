@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TheSmartInvestor Financial Dashboard & Scraper</title>
+  <meta name="description" content="Dashboard interactivo para análisis de estados financieros y ratios scrapeados desde TheSmartInvestorTool.">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js CDN for Interactive Financial Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            },
+            slate: {
+              850: '#151f32',
+              900: '#0f172a',
+              950: '#070b14',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
+
+  <!-- ========================================================================= -->
+  <!-- TOP NAVIGATION HEADER                                                     -->
+  <!-- ========================================================================= -->
+  <header class="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-black text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-blue-400 bg-clip-text text-transparent">
+              Smart Investor Hub
+            </span>
+            <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">PRO</span>
+          </div>
+          <p class="text-[11px] text-slate-400 -mt-0.5">Scraper & Financial Analytics Dashboard</p>
+        </div>
+      </div>
+
+      <!-- Cookie Session Status & Actions -->
+      <div class="flex items-center gap-3">
+        <button id="openCookieModalBtn" class="flex items-center gap-2">
+          <div id="cookieStatusPill" class="px-3 py-1 text-xs font-semibold rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5 cursor-pointer hover:bg-slate-700 transition">
+            <span class="w-2 h-2 rounded-full bg-slate-500"></span> Verificando sesión...
+          </div>
+        </button>
+
+        <button id="configBtn" onclick="openCookieModal()" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+          <span class="hidden sm:inline">Configurar Cookies</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- MAIN CONTAINER                                                            -->
+  <!-- ========================================================================= -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- SEARCH & TICKER BAR -->
+    <section class="bg-slate-900 border border-slate-800/90 rounded-2xl p-4 sm:p-5 shadow-xl">
+      <form id="searchForm" class="flex flex-col sm:flex-row gap-3">
+        <div class="relative flex-1">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+          </div>
+          <input 
+            type="text" 
+            id="tickerInput" 
+            placeholder="Ingresa un ticker bursátil (ej. MSFT, AAPL, NVDA, GOOGL, AMZN)..." 
+            class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium uppercase tracking-wider text-sm transition"
+            required
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </div>
+        <!-- Period Type Selector -->
+        <div class="flex items-center bg-slate-950 border border-slate-700/80 rounded-xl px-1 py-1 gap-0.5 shrink-0">
+          <button type="button" id="periodAnnual" data-period="annual"
+            class="period-btn px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white transition">
+            📅 Anual
+          </button>
+          <button type="button" id="periodQuarterly" data-period="quarterly"
+            class="period-btn px-4 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+            📆 Trimestral
+          </button>
+        </div>
+        <button 
+          type="submit" 
+          id="searchBtn"
+          class="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition transform active:scale-95 text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          Consultar
+        </button>
+      </form>
+
+      <!-- Quick Ticker Suggestions -->
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+        <span class="font-semibold text-slate-500">Sugerencias rápidas:</span>
+        <button type="button" data-symbol="MSFT" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700/50 transition">MSFT</button>
+        <button type="button" data-symbol="AAPL" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700/50 transition">AAPL</button>
+        <button type="button" data-symbol="NVDA" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700/50 transition">NVDA</button>
+        <button type="button" data-symbol="GOOGL" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700/50 transition">GOOGL</button>
+        <button type="button" data-symbol="AMZN" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700/50 transition">AMZN</button>
+        <button type="button" data-symbol="TSLA" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700/50 transition">TSLA</button>
+        <button type="button" data-symbol="META" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700/50 transition">META</button>
+        <button type="button" data-symbol="DEMO" class="quick-ticker-btn px-2.5 py-1 rounded-lg bg-indigo-950 text-indigo-300 font-bold border border-indigo-700/60 hover:bg-indigo-900 transition">🚀 Probar Datos DEMO</button>
+      </div>
+    </section>
+
+    <!-- ERROR ALERT BANNER -->
+    <div id="errorAlert" class="hidden bg-rose-950/80 border border-rose-800 text-rose-200 p-4 rounded-2xl shadow-lg animate-fade-in">
+      <div id="errorMessage"></div>
+    </div>
+
+    <!-- WELCOME / INITIAL STATE -->
+    <div id="welcomeState" class="text-center py-16 px-4 bg-slate-900/50 border border-slate-800/80 rounded-2xl">
+      <div class="w-16 h-16 bg-blue-900/30 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-700/30">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+        </svg>
+      </div>
+      <h2 class="text-xl font-bold text-white mb-2">Explorador Financiero de TheSmartInvestorTool</h2>
+      <p class="text-slate-400 max-w-lg mx-auto text-sm mb-6">
+        Ingresa un ticker bursátil en el buscador o haz click en "Probar Datos DEMO" para ver el análisis de estados financieros, balance general, flujo de caja y ratios clave.
+      </p>
+      <div class="inline-flex gap-3">
+        <button onclick="searchTicker('DEMO')" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-500/20">
+          Cargar Datos de Ejemplo (DEMO)
+        </button>
+        <button onclick="openCookieModal()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition">
+          Pegar Cookies de Sesión
+        </button>
+      </div>
+    </div>
+
+    <!-- SKELETON LOADING STATE -->
+    <div id="loadingState" class="hidden space-y-6 animate-pulse">
+      <div class="h-28 bg-slate-900 border border-slate-800 rounded-2xl p-6 skeleton-shimmer"></div>
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div class="h-20 bg-slate-900 border border-slate-800 rounded-xl skeleton-shimmer"></div>
+        <div class="h-20 bg-slate-900 border border-slate-800 rounded-xl skeleton-shimmer"></div>
+        <div class="h-20 bg-slate-900 border border-slate-800 rounded-xl skeleton-shimmer"></div>
+        <div class="h-20 bg-slate-900 border border-slate-800 rounded-xl skeleton-shimmer"></div>
+        <div class="h-20 bg-slate-900 border border-slate-800 rounded-xl skeleton-shimmer"></div>
+        <div class="h-20 bg-slate-900 border border-slate-800 rounded-xl skeleton-shimmer"></div>
+        <div class="h-20 bg-slate-900 border border-slate-800 rounded-xl skeleton-shimmer"></div>
+      </div>
+      <div class="h-96 bg-slate-900 border border-slate-800 rounded-2xl skeleton-shimmer"></div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- DASHBOARD RESULTS CONTENT                                               -->
+    <!-- ======================================================================= -->
+    <div id="dashboardContent" class="hidden space-y-6">
+
+      <!-- 1. COMPANY BANNER -->
+      <section class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-850 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-3">
+            <span id="companySymbol" class="px-3 py-1 bg-blue-600 text-white font-black text-lg rounded-xl tracking-wider shadow">MSFT</span>
+            <h1 id="companyName" class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Microsoft Corporation</h1>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+            <span id="companySector" class="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">Technology</span>
+            <span id="companyExchange" class="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">NASDAQ</span>
+            <a id="sourceLink" href="#" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 flex items-center gap-1">
+              <span>Abrir en TheSmartInvestorTool</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+              </svg>
+            </a>
+          </div>
+        </div>
+        
+        <div class="text-left md:text-right">
+          <div id="companyPrice" class="text-3xl sm:text-4xl font-black text-emerald-400 font-mono-num">$418.50</div>
+          <div class="text-xs text-slate-400 uppercase tracking-widest font-semibold mt-0.5">Precio de Mercado</div>
+        </div>
+      </section>
+
+      <!-- 2. SUMMARY / KEY METRICS CARDS -->
+      <section>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            Métricas Clave & Valuation
+          </h3>
+        </div>
+        <div id="kpiGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <!-- Dinámicamente poblado con tarjetas KPI -->
+        </div>
+      </section>
+
+      <!-- 3. FINANCIAL STATEMENTS SECTION -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+        
+        <!-- Tabs & Toolbar Header -->
+        <div class="p-4 sm:p-5 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          
+          <!-- Tabs Navigation -->
+            <button data-tab="income_statement" class="tab-btn px-4 py-2 rounded-lg bg-blue-600 text-white transition">
+              📊 Estado de Resultados
+            </button>
+            <button data-tab="balance_sheet" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              ⚖️ Balance General
+            </button>
+            <button data-tab="cash_flow" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              💰 Flujo de Caja
+            </button>
+            <button data-tab="ratios" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              📈 Ratios & Margins
+            </button>
+            <button data-tab="estimates" class="tab-btn px-4 py-2 rounded-lg text-amber-300 hover:text-amber-200 hover:bg-amber-950/60 border border-amber-800/40 transition">
+              🎯 Estimaciones (Estimates)
+            </button>
+            <button data-tab="charts" class="tab-btn px-4 py-2 rounded-lg text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/60 border border-indigo-800/40 transition">
+              📉 Gráficas (Charts)
+            </button>
+            <button data-tab="raw_tables" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              📑 Otras Tablas
+            </button>
+            <button data-tab="json_viewer" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              🔍 JSON Crudo
+            </button>
+          </div>
+
+          <!-- Actions Toolbar (Period Toggle, Filter, CSV Export, JSON Copy) -->
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- In-Table Period Switcher -->
+            <div class="flex items-center bg-slate-950 border border-slate-700 rounded-lg p-0.5 text-xs font-semibold">
+              <button type="button" data-period="annual" class="period-toggle-btn px-2.5 py-1 rounded bg-blue-600 text-white transition">
+                Anual
+              </button>
+              <button type="button" data-period="quarterly" class="period-toggle-btn px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 transition">
+                Trimestral
+              </button>
+            </div>
+
+            <!-- Filter Input -->
+            <div class="relative">
+              <input 
+                type="text" 
+                id="metricFilterInput" 
+                placeholder="Filtrar filas (ej. Revenue)..." 
+                class="w-36 sm:w-48 pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+              <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+              </svg>
+            </div>
+
+            <!-- Export CSV -->
+            <button id="exportCsvBtn" title="Descargar tabla activa en formato CSV para Excel" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              <span>CSV</span>
+            </button>
+
+            <!-- Copy JSON -->
+            <button id="copyJsonBtn" title="Copiar todo el payload JSON" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+              <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+              </svg>
+              <span>JSON</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Section Title Header -->
+        <div class="px-5 py-3 bg-slate-950/60 border-b border-slate-800/80 flex items-center justify-between">
+          <h4 id="tableTitle" class="text-sm font-bold text-slate-300">Estado de Resultados (Income Statement)</h4>
+          <span class="text-xs text-slate-500 italic">Desplaza horizontalmente para ver todos los períodos</span>
+        </div>
+
+        <!-- ESTIMATES & FAIR VALUE SUMMARY BANNER (Shown only on Estimates tab) -->
+        <div id="estimatesSummaryBox" class="hidden p-5 bg-slate-950/80 border-b border-slate-800 space-y-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl">
+              <div class="text-[11px] font-semibold text-slate-400 uppercase">DCF Fair Value</div>
+              <div id="estDcfFv" class="text-lg font-bold text-emerald-400 font-mono-num mt-0.5">—</div>
+            </div>
+            <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl">
+              <div class="text-[11px] font-semibold text-slate-400 uppercase">Morningstar Fair Value</div>
+              <div id="estMsFv" class="text-lg font-bold text-blue-400 font-mono-num mt-0.5">—</div>
+            </div>
+            <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl">
+              <div class="text-[11px] font-semibold text-slate-400 uppercase">Morningstar Rating</div>
+              <div id="estMsRating" class="text-lg font-bold text-amber-400 mt-0.5">—</div>
+            </div>
+            <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl">
+              <div class="text-[11px] font-semibold text-slate-400 uppercase">TSI Rating</div>
+              <div id="estTsiRating" class="text-lg font-bold text-indigo-400 mt-0.5">—</div>
+            </div>
+            <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl">
+              <div class="text-[11px] font-semibold text-slate-400 uppercase">Target Price (Avg)</div>
+              <div id="estTargetAvg" class="text-lg font-bold text-purple-400 font-mono-num mt-0.5">—</div>
+            </div>
+            <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl">
+              <div class="text-[11px] font-semibold text-slate-400 uppercase">Target Range (L / H)</div>
+              <div id="estTargetRange" class="text-xs font-bold text-slate-300 font-mono-num mt-1.5">—</div>
+            </div>
+          </div>
+
+          <!-- Analyst Consensus Bar -->
+          <div id="analystConsensusBar" class="p-3.5 bg-slate-900/60 border border-slate-800/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div class="font-bold text-slate-300 flex items-center gap-2">
+              <span>📊 Consenso de Analistas:</span>
+              <span id="analystTotalRatings" class="text-slate-400 font-normal">0 analistas</span>
+            </div>
+            <div id="analystPills" class="flex flex-wrap items-center gap-2">
+              <!-- Renderizado dinámicamente -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLE WRAPPER WITH FROZEN COLUMN -->
+        <div id="tableContainerWrapper" class="table-container max-h-[600px] overflow-y-auto">
+          <table class="financial-table w-full text-left border-collapse">
+            <thead class="bg-slate-800/90 text-slate-300">
+              <tr id="tableHeaderRow">
+                <!-- Headers dinámicos generados por JS -->
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-slate-800/60 text-slate-200">
+              <!-- Filas dinámicas generadas por JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- RAW JSON VIEWER -->
+        <div id="jsonViewer" class="hidden p-5 bg-slate-950 overflow-x-auto max-h-[600px]">
+          <pre id="jsonCode" class="text-xs font-mono-num text-emerald-400"></pre>
+        </div>
+
+        <!-- 4 INTERACTIVE FINANCIAL CHARTS CONTAINER -->
+        <div id="chartsContainer" class="hidden p-5 sm:p-6 bg-slate-950/60 space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span>📊 Análisis Visual Financiero</span>
+                <span id="chartsSubtitle" class="text-xs font-normal text-slate-400">— Datos dinámicos</span>
+              </h3>
+              <p class="text-xs text-slate-400 mt-0.5">Cuatro gráficas independientes generadas automáticamente a partir de los datos financieros activos.</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-lg bg-indigo-950 text-indigo-300 border border-indigo-800/60 text-xs font-semibold">
+              Interactivo
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Gráfica 1: Ingresos y Margen Bruto -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+              <div class="mb-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-sm font-bold text-slate-200">1. Tendencia de Ingresos y Margen Bruto</h4>
+                  <span class="text-[11px] font-mono text-blue-400">Doble Eje Y</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">Eje Izq: Ingresos ($B) · Eje Der: Margen Bruto (%)</p>
+              </div>
+              <div class="relative h-72 w-full">
+                <canvas id="chartRevenueGrossMargin"></canvas>
+              </div>
+            </div>
+
+            <!-- Gráfica 2: Crecimiento YoY -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+              <div class="mb-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-sm font-bold text-slate-200">2. Crecimiento Interanual (YoY)</h4>
+                  <span class="text-[11px] font-mono text-emerald-400">Barras Agrupadas</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">Crecimiento YoY de Ingresos (Azul) vs Ganancia Neta (Verde)</p>
+              </div>
+              <div class="relative h-72 w-full">
+                <canvas id="chartYoYGrowth"></canvas>
+              </div>
+            </div>
+
+            <!-- Gráfica 3: Márgenes Bruto vs Neto -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+              <div class="mb-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-sm font-bold text-slate-200">3. Márgenes de Rentabilidad (Bruto vs. Neto)</h4>
+                  <span class="text-[11px] font-mono text-sky-400">Escala 0% - 100%</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">Gross Profit Ratio vs Net Income Ratio normalizados</p>
+              </div>
+              <div class="relative h-72 w-full">
+                <canvas id="chartMargins"></canvas>
+              </div>
+            </div>
+
+            <!-- Gráfica 4: Basic EPS -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+              <div class="mb-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-sm font-bold text-slate-200">4. Ganancias por Acción Básicas (Basic EPS)</h4>
+                  <span class="text-[11px] font-mono text-indigo-400">Escala Monetaria ($)</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">Evolución del Beneficio por Acción por período</p>
+              </div>
+              <div class="relative h-72 w-full">
+                <canvas id="chartBasicEps"></canvas>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: COOKIE CONFIGURATION                                              -->
+  <!-- ========================================================================= -->
+  <div id="cookieModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-white">Configurar Cookies de Sesión</h3>
+        </div>
+        <button id="closeCookieModalBtn" class="text-slate-400 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Instructions Guide -->
+      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs space-y-2 text-slate-300">
+        <p class="font-bold text-blue-400 flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          ¿Cómo extraer tu cookie de TheSmartInvestorTool?
+        </p>
+        <ol class="list-decimal list-inside space-y-1 text-slate-400 pl-1">
+          <li>Abre <a href="https://thesmartinvestortool.com" target="_blank" class="text-blue-400 underline">thesmartinvestortool.com</a> e inicia sesión con tu cuenta.</li>
+          <li>Presiona <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-slate-200">F12</kbd> (o click derecho &rarr; <em>Inspeccionar</em>).</li>
+          <li>Ve a la pestaña <strong>Network</strong> (Red) y recarga la página.</li>
+          <li>Selecciona la primera petición a <code class="text-slate-200">thesmartinvestortool.com</code> y en la pestaña <strong>Headers</strong> busca la sección <strong>Request Headers</strong>.</li>
+          <li>Copia todo el valor de la cabecera <strong>Cookie:</strong> (o ve a <em>Application &rarr; Cookies</em> y copia las cookies de sesión).</li>
+        </ol>
+      </div>
+
+      <div>
+        <label for="cookieInput" class="block text-xs font-semibold text-slate-300 mb-1">
+          Pega aquí el valor de la Cookie:
+        </label>
+        <textarea 
+          id="cookieInput" 
+          rows="4" 
+          placeholder="Ejemplo: next-auth.session-token=eyJhbGciOi...; __Host-authjs.csrf-token=..."
+          class="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-600"
+        ></textarea>
+        <div id="cookieFeedback" class="hidden"></div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <button onclick="closeCookieModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition">
+          Cancelar
+        </button>
+        <button id="cookieSaveBtn" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-500/20">
+          Guardar y Aplicar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- FOOTER                                                                    -->
+  <!-- ========================================================================= -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
+    <p>Financial Scraper & Analytics Dashboard &bull; FastAPI + Tailwind CSS</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
