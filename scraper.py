@@ -1309,25 +1309,37 @@ class SmartInvestorScraper:
             "chart7_fcf": {"fcf": fcf_series, "growth_yoy": fcf_growth_series, "periods": periods_f}
         }
 
-        # ── 6. Historical Ratios (8 Gráficas de Valoración) ───────────
-        hist_years = [r.get("calendarYear", f"202{i}") for i, r in enumerate(reversed(ratios_hist[:10]))] if ratios_hist else ["2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026"]
-        r_hist_rev = list(reversed(ratios_hist[:10])) if ratios_hist else []
+        # ── 6. Historical Ratios (8 Gráficas de Valoración con TTM más reciente) ───────────
+        ratios_raw = extract_js_var("ratios", text) or []
+        r_ttm = ratios_raw[0] if ratios_raw else {}
 
-        def get_rh_series(key, default_vals):
+        r_hist_rev = list(reversed(ratios_hist[:10])) if ratios_hist else []
+        hist_years = [r.get("calendarYear", f"202{i}") for i, r in enumerate(r_hist_rev)] if r_hist_rev else ["2021", "2022", "2023", "2024", "2025"]
+
+        # Si tenemos ratios TTM actuales, añadirlos como el último punto TTM para tener el valor más reciente en vivo
+        has_ttm = bool(r_ttm)
+        if has_ttm and (not hist_years or hist_years[-1] != "TTM"):
+            hist_years = hist_years + ["TTM"]
+
+        def get_rh_series(key, ttm_key, default_vals, is_percent=False):
             if r_hist_rev:
-                return [round(float(r.get(key) or 0.0), 2) for r in r_hist_rev]
+                vals = [round(float(r.get(key) or 0.0) * (100 if is_percent and float(r.get(key) or 0.0) < 1 else 1), 2) for r in r_hist_rev]
+                if has_ttm and r_ttm.get(ttm_key) is not None:
+                    ttm_val = float(r_ttm.get(ttm_key) or 0.0)
+                    vals.append(round(ttm_val, 2))
+                return vals
             return default_vals
 
         historical_ratios = {
             "years": hist_years,
-            "pe_ratio": {"label": "P/E Ratio", "data": get_rh_series("priceEarningsRatio", [28.5, 30.2, 33.4, 35.8, 32.1, 27.4, 34.2, 36.1, 31.4, 33.2])},
-            "ps_ratio": {"label": "P/S Ratio", "data": get_rh_series("priceToSalesRatio", [6.8, 7.5, 8.4, 11.2, 12.4, 9.8, 11.5, 12.8, 11.9, 12.1])},
-            "pb_ratio": {"label": "P/B Ratio", "data": get_rh_series("priceToBookRatio", [7.2, 8.1, 9.5, 13.4, 15.2, 11.1, 13.8, 14.5, 12.8, 13.4])},
-            "ev_ebitda": {"label": "EV/EBITDA", "data": get_rh_series("enterpriseValueMultiple", [18.2, 19.5, 21.4, 25.1, 26.8, 20.4, 24.5, 26.2, 23.8, 24.9])},
-            "pfcf_ratio": {"label": "Price / Free Cash Flow", "data": get_rh_series("priceToFreeCashFlowsRatio", [24.1, 26.8, 30.5, 38.2, 42.1, 33.4, 39.8, 43.1, 38.5, 41.2])},
-            "ev_sales": {"label": "EV / Sales", "data": get_rh_series("priceSalesRatio", [6.5, 7.2, 8.1, 10.8, 12.1, 9.5, 11.2, 12.4, 11.5, 11.8])},
-            "dividend_yield": {"label": "Dividend Yield (%)", "data": [round(v * 100, 2) if v < 1 else v for v in get_rh_series("dividendYield", [1.8, 1.6, 1.4, 1.1, 0.9, 1.1, 0.9, 0.8, 0.7, 0.8])]},
-            "debt_equity": {"label": "Debt / Equity", "data": get_rh_series("debtEquityRatio", [0.65, 0.58, 0.52, 0.48, 0.44, 0.41, 0.40, 0.38, 0.35, 0.32])}
+            "pe_ratio": {"label": "P/E Ratio", "data": get_rh_series("priceEarningsRatio", "peRatioTTM", [28.5, 30.2, 33.4, 35.8, 32.1, 27.4, 34.2, 36.1, 31.4, 33.2])},
+            "ps_ratio": {"label": "P/S Ratio", "data": get_rh_series("priceToSalesRatio", "priceToSalesRatioTTM", [6.8, 7.5, 8.4, 11.2, 12.4, 9.8, 11.5, 12.8, 11.9, 12.1])},
+            "pb_ratio": {"label": "P/B Ratio", "data": get_rh_series("priceToBookRatio", "priceToBookRatioTTM", [7.2, 8.1, 9.5, 13.4, 15.2, 11.1, 13.8, 14.5, 12.8, 13.4])},
+            "ev_ebitda": {"label": "EV/EBITDA", "data": get_rh_series("enterpriseValueMultiple", "enterpriseValueMultipleTTM", [18.2, 19.5, 21.4, 25.1, 26.8, 20.4, 24.5, 26.2, 23.8, 24.9])},
+            "pfcf_ratio": {"label": "Price / Free Cash Flow", "data": get_rh_series("priceToFreeCashFlowsRatio", "priceToFreeCashFlowsRatioTTM", [24.1, 26.8, 30.5, 38.2, 42.1, 33.4, 39.8, 43.1, 38.5, 41.2])},
+            "ev_sales": {"label": "EV / Sales", "data": get_rh_series("priceSalesRatio", "priceSalesRatioTTM", [6.5, 7.2, 8.1, 10.8, 12.1, 9.5, 11.2, 12.4, 11.5, 11.8])},
+            "dividend_yield": {"label": "Dividend Yield (%)", "data": get_rh_series("dividendYield", "dividendYielPercentageTTM", [1.8, 1.6, 1.4, 1.1, 0.9, 1.1, 0.9, 0.8, 0.7, 0.8], is_percent=True)},
+            "debt_equity": {"label": "Debt / Equity", "data": get_rh_series("debtEquityRatio", "debtEquityRatioTTM", [0.65, 0.58, 0.52, 0.48, 0.44, 0.41, 0.40, 0.38, 0.35, 0.32])}
         }
 
         # ── 7. Estimates (3 Gráficas de Proyección) ─────────────────────
