@@ -13,14 +13,17 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    COOKIE_STRING: str = ""
+    COOKIE_STRING: str = os.getenv(
+        "COOKIE_STRING",
+        "_ga=GA1.1.1213138851.1786898736; csrftoken=YrKI4H4vpaGN3F8xOOXqpmKFSBTiGTxW; sessionid=ubjgirlp4yxon2dbo3nrg1nk5558zk1o; _ga_73DSW1MR8R=GS2.1.s1787407000$o10$g1$t1787408404$j59$l0$h0"
+    )
     SESSION_COOKIE_NAME: str = ""
     SESSION_COOKIE_VALUE: str = ""
     HOST: str = "127.0.0.1"
     PORT: int = 8000
     DEBUG: bool = True
     BASE_URL: str = "https://thesmartinvestortool.com"
-    REQUEST_TIMEOUT: int = 15
+    REQUEST_TIMEOUT: int = 20
     USER_AGENT: str = (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "

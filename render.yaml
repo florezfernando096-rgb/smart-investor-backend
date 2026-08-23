@@ -7,3 +7,5 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: COOKIE_STRING
+        value: "_ga=GA1.1.1213138851.1786898736; csrftoken=YrKI4H4vpaGN3F8xOOXqpmKFSBTiGTxW; sessionid=ubjgirlp4yxon2dbo3nrg1nk5558zk1o; _ga_73DSW1MR8R=GS2.1.s1787407000$o10$g1$t1787408404$j59$l0$h0"
