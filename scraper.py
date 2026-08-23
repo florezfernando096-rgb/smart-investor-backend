@@ -1168,8 +1168,21 @@ class SmartInvestorScraper:
             else:
                 mkt_cap = "N/A"
 
+        # Distancia porcentual respecto al Máximo de 52 Semanas
+        max_52w_val = max_1y
+        m_range = re.search(r"-\s*\$?([\d\.]+)", range_52w)
+        if m_range:
+            try:
+                max_52w_val = float(m_range.group(1))
+            except ValueError:
+                pass
+
+        diff_max_pct = None
+        if max_52w_val > 0 and curr_price > 0:
+            diff_max_pct = round(((curr_price - max_52w_val) / max_52w_val) * 100, 2)
+
         kpis_grid = [
-            {"label": "52W Range", "value": range_52w, "icon": "trending-up"},
+            {"label": "52W Range", "value": range_52w, "diff_max_pct": diff_max_pct, "icon": "trending-up"},
             {"label": "P/E (TTM)", "value": pe_ttm, "icon": "pie-chart"},
             {"label": "P/E (FWD)", "value": pe_fwd, "icon": "clock"},
             {"label": "EPS (TTM)", "value": eps_ttm, "icon": "dollar-sign"},

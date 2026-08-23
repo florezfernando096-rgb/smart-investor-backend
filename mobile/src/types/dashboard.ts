@@ -39,6 +39,7 @@ export interface PriceChartData {
 export interface KpiItem {
   label: string;
   value: string;
+  diff_max_pct?: number | null;
   icon?: string;
 }
 

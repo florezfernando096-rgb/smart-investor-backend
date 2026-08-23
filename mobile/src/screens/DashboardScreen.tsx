@@ -288,7 +288,10 @@ export const DashboardScreen: React.FC<Props> = ({
 
               {/* C. Sección Resumen (8 KPIs en Grid 2x4) */}
               {data?.kpis_summary && (
-                <KpiGrid kpis={data.kpis_summary} />
+                <KpiGrid
+                  kpis={data.kpis_summary}
+                  currentPrice={data?.price_header?.price}
+                />
               )}
 
               {/* D. Sección Fair Value */}
