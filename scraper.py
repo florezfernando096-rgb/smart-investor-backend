@@ -1,6 +1,7 @@
 import json
 import re
 import time
+import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
@@ -1469,7 +1470,7 @@ class SmartInvestorScraper:
             "technical_indicators": technical_indicators,
             "financials": financials_charts,
             "historical_ratios": historical_ratios,
-            "estimates": estimates_charts
+            "estimates": estimates_payload
         }
 
         if hasattr(self, "_dashboard_cache"):
