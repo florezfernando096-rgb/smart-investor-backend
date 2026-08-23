@@ -5,9 +5,19 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const STORAGE_KEY_URL = 'smart_investor_supabase_url';
 const STORAGE_KEY_ANON_KEY = 'smart_investor_supabase_anon_key';
 
-// Credenciales por defecto (pueden ser configuradas dinámicamente desde la app o variables de entorno)
-let currentSupabaseUrl = 'https://xyzcompany.supabase.co';
-let currentSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+// Credenciales por defecto configuradas para el proyecto de Supabase del usuario
+export const DEFAULT_SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  'https://cbhkomvhgbxmvxhxgelu.supabase.co';
+
+export const DEFAULT_SUPABASE_ANON_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  'sb_publishable_-8UfSU0Z4gbodIbIhjyRlg_Mfkyeuw7';
+
+let currentSupabaseUrl = DEFAULT_SUPABASE_URL;
+let currentSupabaseAnonKey = DEFAULT_SUPABASE_ANON_KEY;
 
 export let supabase: SupabaseClient = createClient(currentSupabaseUrl, currentSupabaseAnonKey, {
   auth: {
@@ -39,9 +49,12 @@ export async function loadStoredSupabaseConfig() {
     const storedKey = await AsyncStorage.getItem(STORAGE_KEY_ANON_KEY);
     if (storedUrl && storedKey) {
       initSupabaseClient(storedUrl, storedKey);
+    } else {
+      initSupabaseClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
     }
   } catch (err) {
     console.warn('Error loading Supabase config from storage:', err);
+    initSupabaseClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
   }
 }
 
