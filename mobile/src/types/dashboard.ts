@@ -134,23 +134,15 @@ export interface HistoricalRatiosData {
   debt_equity: RatioSeries;
 }
 
-export interface EstimatesChartsData {
-  periods_5y: string[];
-  chart_e1_growth: {
-    revenues: number[];
-    ebitda: number[];
-    net_income: number[];
-    periods: string[];
-  };
-  chart_e2_valuation: {
-    eps_projected: number[];
-    forward_pe: number[];
-    periods: string[];
-  };
-  chart_e3_fcf: {
-    fcf_projected: number[];
-    periods: string[];
-  };
+export interface EstimateMetricRow {
+  label: string;
+  values: string[];
+  yoy: string[];
+}
+
+export interface EstimatesTableData {
+  periods: string[];
+  metrics: EstimateMetricRow[];
 }
 
 export interface DashboardResponse {
@@ -164,6 +156,6 @@ export interface DashboardResponse {
   technical_indicators: TechnicalIndicatorsData;
   financials: FinancialsChartsData;
   historical_ratios: HistoricalRatiosData;
-  estimates: EstimatesChartsData;
+  estimates: EstimatesTableData;
   message?: string;
 }

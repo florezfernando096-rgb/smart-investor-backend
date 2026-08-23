@@ -31,9 +31,12 @@ import { GroupedBarChart } from '../components/charts/GroupedBarChart';
 import { MultiLineChart } from '../components/charts/MultiLineChart';
 import { SimpleBarChart } from '../components/charts/SimpleBarChart';
 import { ValuationRatiosGrid } from '../components/charts/ValuationRatiosGrid';
+import { EstimatesTable } from '../components/EstimatesTable';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { useTheme } from '../context/ThemeContext';
 
 export const DashboardScreen: React.FC = () => {
+  const { isDark, colors, toggleTheme } = useTheme();
   const [symbol, setSymbol] = useState('MSFT');
   const [periodType, setPeriodType] = useState<'annual' | 'quarterly'>('annual');
   const [loading, setLoading] = useState(false);
@@ -92,36 +95,67 @@ export const DashboardScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#090d16]">
-      <StatusBar barStyle="light-content" backgroundColor="#090d16" />
+    <SafeAreaView style={{ backgroundColor: colors.bg }} className="flex-1">
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bg}
+      />
 
-      {/* Header Fijo con Marca y Botón de Ajustes */}
-      <View className="px-4 py-3 bg-[#090d16] border-b border-slate-800/80 flex-row justify-between items-center">
+      {/* Header Fijo con Marca, Toggle Theme y Botón de Ajustes */}
+      <View
+        style={{
+          backgroundColor: colors.cardBg,
+          borderBottomColor: colors.cardBorder,
+        }}
+        className="px-4 py-3 border-b flex-row justify-between items-center"
+      >
         <View className="flex-row items-center">
           <Text className="text-xl mr-1.5">⚡</Text>
-          <Text className="text-lg font-black text-white tracking-wider">
-            SMART<Text className="text-indigo-400">INVESTOR</Text>
+          <Text
+            style={{ color: colors.textPrimary }}
+            className="text-lg font-black tracking-wider"
+          >
+            SMART<Text className="text-indigo-600 dark:text-indigo-400">INVESTOR</Text>
           </Text>
         </View>
 
-        <View className="flex-row items-center space-x-2">
+        <View className="flex-row items-center">
+          {/* Botón Switch Modo Claro / Oscuro (☀️ / 🌙) */}
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={{
+              backgroundColor: colors.pillBg,
+              borderColor: colors.pillBorder,
+            }}
+            className="w-8 h-8 rounded-full items-center justify-center mr-2 border active:opacity-70"
+          >
+            <Text className="text-sm">{isDark ? '☀️' : '🌙'}</Text>
+          </TouchableOpacity>
+
           {/* Badge de Estado / Origen de Datos */}
           <TouchableOpacity
             onPress={() => setSettingsModalVisible(true)}
-            className="flex-row items-center bg-slate-800/90 px-2.5 py-1 rounded-full border border-slate-700 active:bg-slate-700"
+            style={{
+              backgroundColor: colors.pillBg,
+              borderColor: colors.pillBorder,
+            }}
+            className="flex-row items-center px-2.5 py-1 rounded-full border active:opacity-70"
           >
             <View
               className={`w-2 h-2 rounded-full mr-1.5 ${
                 sourceMode === 'cloud'
-                  ? 'bg-emerald-400'
+                  ? 'bg-emerald-500'
                   : sourceMode === 'local'
-                  ? 'bg-sky-400'
+                  ? 'bg-sky-500'
                   : sourceMode === 'direct'
-                  ? 'bg-amber-400'
-                  : 'bg-indigo-400'
+                  ? 'bg-amber-500'
+                  : 'bg-indigo-500'
               }`}
             />
-            <Text className="text-[11px] font-bold text-slate-200">
+            <Text
+              style={{ color: colors.textSecondary }}
+              className="text-[11px] font-bold"
+            >
               {sourceMode === 'cloud'
                 ? 'Cloud HTTPS'
                 : sourceMode === 'local'
@@ -136,14 +170,15 @@ export const DashboardScreen: React.FC = () => {
 
       <ErrorBoundary onReset={() => loadData(symbol, periodType)}>
         <ScrollView
+          style={{ backgroundColor: colors.bg }}
           className="flex-1 px-4 pt-3"
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#38bdf8"
-              colors={['#38bdf8']}
+              tintColor={colors.chartPrimary}
+              colors={[colors.chartPrimary]}
             />
           }
         >
@@ -190,12 +225,22 @@ export const DashboardScreen: React.FC = () => {
                   badgeText="7 Gráficas"
                   defaultOpen={true}
                   rightControl={
-                    <View className="flex-row bg-slate-950 rounded-lg p-0.5 border border-slate-800">
+                    <View
+                      style={{
+                        backgroundColor: colors.cardBg,
+                        borderColor: colors.cardBorder,
+                      }}
+                      className="flex-row rounded-lg p-0.5 border"
+                    >
                       <TouchableOpacity
                         onPress={() => handlePeriodToggle('annual')}
                         className={`px-2 py-0.5 rounded ${periodType === 'annual' ? 'bg-indigo-600' : 'bg-transparent'}`}
                       >
-                        <Text className={`text-[10px] font-bold ${periodType === 'annual' ? 'text-white' : 'text-slate-400'}`}>
+                        <Text
+                          className={`text-[10px] font-bold ${
+                            periodType === 'annual' ? 'text-white' : colors.textSecondary
+                          }`}
+                        >
                           Anual
                         </Text>
                       </TouchableOpacity>
@@ -203,7 +248,11 @@ export const DashboardScreen: React.FC = () => {
                         onPress={() => handlePeriodToggle('quarterly')}
                         className={`px-2 py-0.5 rounded ${periodType === 'quarterly' ? 'bg-indigo-600' : 'bg-transparent'}`}
                       >
-                        <Text className={`text-[10px] font-bold ${periodType === 'quarterly' ? 'text-white' : 'text-slate-400'}`}>
+                        <Text
+                          className={`text-[10px] font-bold ${
+                            periodType === 'quarterly' ? 'text-white' : colors.textSecondary
+                          }`}
+                        >
                           Trimestral
                         </Text>
                       </TouchableOpacity>
@@ -222,112 +271,96 @@ export const DashboardScreen: React.FC = () => {
 
                   {/* Gráfica 2: Revenues vs Net Income */}
                   <GroupedBarChart
-                    title="2. Ingresos vs Beneficio Neto"
+                    title="2. Ingresos vs Beneficio Neto ($B)"
                     periods={data?.financials?.periods || []}
-                    series1={{ label: 'Ingresos ($B)', values: data?.financials?.chart2_rev_net?.revenues || [], color: '#38bdf8' }}
-                    series2={{ label: 'Net Income ($B)', values: data?.financials?.chart2_rev_net?.net_income || [], color: '#10b981' }}
+                    series1={{
+                      label: 'Ingresos',
+                      values: data?.financials?.chart2_rev_net?.revenues || [],
+                      color: colors.chartPrimary,
+                    }}
+                    series2={{
+                      label: 'Net Income',
+                      values: data?.financials?.chart2_rev_net?.net_income || [],
+                      color: colors.chartSecondary,
+                    }}
                   />
 
-                  {/* Gráfica 3: Márgenes de Rentabilidad */}
+                  {/* Gráfica 3: Margins Comparison */}
                   <MultiLineChart
                     title="3. Márgenes de Rentabilidad (%)"
                     periods={data?.financials?.periods || []}
                     series={[
-                      { label: 'Gross Margin', values: data?.financials?.chart3_margins?.gross_margin || [], color: '#38bdf8' },
-                      { label: 'EBITDA Margin', values: data?.financials?.chart3_margins?.ebitda_margin || [], color: '#f59e0b' },
-                      { label: 'Net Margin', values: data?.financials?.chart3_margins?.net_margin || [], color: '#10b981' },
+                      { label: 'Gross Margin', values: data?.financials?.chart3_margins?.gross_margin || [], color: colors.chartPrimary },
+                      { label: 'EBITDA Margin', values: data?.financials?.chart3_margins?.ebitda_margin || [], color: colors.chartTertiary },
+                      { label: 'Net Margin', values: data?.financials?.chart3_margins?.net_margin || [], color: colors.chartPurple },
                     ]}
+                    suffix="%"
                   />
 
-                  {/* Gráfica 4: Diluted EPS */}
+                  {/* Gráfica 4: Basic EPS */}
                   <SimpleBarChart
-                    title="4. Diluted EPS Histórico ($)"
+                    title="4. Diluted EPS ($ por Acción)"
                     periods={data?.financials?.periods || []}
                     values={data?.financials?.chart4_eps?.eps || []}
                     unit="$"
-                    positiveColor="#10b981"
-                    negativeColor="#ef4444"
+                    positiveColor={colors.chartSecondary}
+                    negativeColor={colors.negative}
                   />
 
-                  {/* Gráfica 5: Acciones en Circulación (Dilución/Recompras) */}
+                  {/* Gráfica 5: Shares Diluted */}
                   <MultiLineChart
-                    title="5. Acciones en Circulación (Shares Diluted)"
+                    title="5. Acciones Diluidas en Circulación ($B)"
                     periods={data?.financials?.periods || []}
                     series={[
-                      { label: 'Shares (B)', values: data?.financials?.chart5_shares?.shares || [], color: '#818cf8' },
+                      { label: 'Shares Diluted', values: data?.financials?.chart5_shares?.shares || [], color: '#06b6d4' },
+                    ]}
+                    suffix="B"
+                    autoscale={true}
+                  />
+
+                  {/* Gráfica 6: Deuda y Solvencia */}
+                  <MultiLineChart
+                    title="6. Deuda Total vs Caja Neta ($B)"
+                    periods={data?.financials?.periods || []}
+                    series={[
+                      { label: 'Total Debt', values: data?.financials?.chart6_debt_solvency?.total_debt || [], color: colors.negative },
+                      { label: 'Cash & Equiv.', values: data?.financials?.chart6_debt_solvency?.cash || [], color: colors.chartSecondary },
+                      { label: 'Net Debt', values: data?.financials?.chart6_debt_solvency?.net_debt || [], color: colors.chartTertiary },
                     ]}
                     suffix="B"
                   />
 
-                  {/* Gráfica 6: Solvencia y Deuda */}
-                  <GroupedBarChart
-                    title="6. Deuda Total vs Efectivo ($B)"
+                  {/* Gráfica 7: Free Cash Flow */}
+                  <SimpleBarChart
+                    title="7. Free Cash Flow ($B)"
                     periods={data?.financials?.periods || []}
-                    series1={{ label: 'Total Debt', values: data?.financials?.chart6_debt_solvency?.total_debt || [], color: '#ef4444' }}
-                    series2={{ label: 'Cash & Equiv', values: data?.financials?.chart6_debt_solvency?.cash || [], color: '#10b981' }}
-                  />
-
-                  {/* Gráfica 7: Flujo de Caja Libre + Crecimiento YoY */}
-                  <DualAxisBarLineChart
-                    title="7. Free Cash Flow vs Crecimiento YoY"
-                    periods={data?.financials?.periods || []}
-                    barValues={data?.financials?.chart7_fcf?.fcf || []}
-                    barLabel="FCF ($B)"
-                    lineValues={data?.financials?.chart7_fcf?.growth_yoy || []}
-                    lineLabel="YoY Growth %"
+                    values={data?.financials?.chart7_fcf?.fcf || []}
+                    unit="$"
+                    positiveColor={colors.chartSecondary}
+                    negativeColor={colors.negative}
                   />
                 </AccordionSection>
               )}
 
-              {/* G. Sección HISTORICAL RATIOS (Acordeón Plegable con 8 Gráficas) */}
+              {/* G. Sección HISTORICAL RATIOS (Grid 2x4) */}
               {data?.historical_ratios && (
                 <AccordionSection
                   title="🏛️ Historical Ratios (Múltiplos a 10 Años)"
                   badgeText="8 Múltiplos"
-                  defaultOpen={false}
+                  defaultOpen={true}
                 >
                   <ValuationRatiosGrid data={data.historical_ratios} />
                 </AccordionSection>
               )}
 
-              {/* H. Sección ESTIMATES / PROYECCIONES (Acordeón Plegable con 3 Gráficas) */}
+              {/* H. Sección ESTIMATES (Tabla de Proyecciones a 5 Años > 2026) */}
               {data?.estimates && (
                 <AccordionSection
-                  title="🔮 Estimates (Proyecciones 2027E - 2031E)"
-                  badgeText="Consenso 5Y"
-                  defaultOpen={false}
+                  title="🔮 Estimates (Proyecciones a 5 Años)"
+                  badgeText={`${data.estimates.periods?.length || 6} Columnas`}
+                  defaultOpen={true}
                 >
-                  {/* Gráfica E1: Multilínea de Crecimiento */}
-                  <MultiLineChart
-                    title="E1. Proyección de Crecimiento ($B)"
-                    periods={data?.estimates?.periods_5y || []}
-                    series={[
-                      { label: 'Revenues', values: data?.estimates?.chart_e1_growth?.revenues || [], color: '#38bdf8' },
-                      { label: 'EBITDA', values: data?.estimates?.chart_e1_growth?.ebitda || [], color: '#f59e0b' },
-                      { label: 'Net Income', values: data?.estimates?.chart_e1_growth?.net_income || [], color: '#10b981' },
-                    ]}
-                    suffix="B"
-                  />
-
-                  {/* Gráfica E2: Valoración Futura */}
-                  <DualAxisBarLineChart
-                    title="E2. EPS Proyectado vs Forward P/E"
-                    periods={data?.estimates?.periods_5y || []}
-                    barValues={data?.estimates?.chart_e2_valuation?.eps_projected || []}
-                    barLabel="EPS ($)"
-                    lineValues={data?.estimates?.chart_e2_valuation?.forward_pe || []}
-                    lineLabel="Forward P/E"
-                  />
-
-                  {/* Gráfica E3: Transición de FCF */}
-                  <MultiLineChart
-                    title="E3. Transición de Free Cash Flow ($B)"
-                    periods={data?.estimates?.periods_5y || []}
-                    series={[
-                      { label: 'Projected FCF', values: data?.estimates?.chart_e3_fcf?.fcf_projected || [], color: '#10b981' },
-                    ]}
-                    suffix="B"
-                  />
+                  <EstimatesTable data={data.estimates} />
                 </AccordionSection>
               )}
 
@@ -345,41 +378,70 @@ export const DashboardScreen: React.FC = () => {
         onRequestClose={() => setSettingsModalVisible(false)}
       >
         <View className="flex-1 bg-black/80 justify-center items-center px-4">
-          <View className="w-full bg-[#0f172a] rounded-3xl p-5 border border-slate-700 shadow-2xl">
-            <Text className="text-base font-black text-white mb-1">
+          <View
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.cardBorder,
+            }}
+            className="w-full rounded-3xl p-5 border shadow-2xl"
+          >
+            <Text
+              style={{ color: colors.textPrimary }}
+              className="text-base font-black mb-1"
+            >
               ⚙️ Conexión & Servidor Cloud
             </Text>
-            <Text className="text-xs text-slate-400 mb-3">
+            <Text style={{ color: colors.textSecondary }} className="text-xs mb-3">
               Configura el backend en la nube para que la app funcione 100% independiente 24/7.
             </Text>
 
             {/* Input URL del Servidor Cloud */}
-            <Text className="text-[11px] font-bold text-slate-300 mb-1">
+            <Text
+              style={{ color: colors.textPrimary }}
+              className="text-[11px] font-bold mb-1"
+            >
               URL Servidor Backend (Render / Cloudflare / Local):
             </Text>
-            <View className="bg-slate-900 rounded-xl p-2.5 border border-slate-700 mb-3">
+            <View
+              style={{
+                backgroundColor: colors.inputBg,
+                borderColor: colors.inputBorder,
+              }}
+              className="rounded-xl p-2.5 border mb-3"
+            >
               <TextInput
-                className="text-white font-mono text-xs"
+                style={{ color: colors.textPrimary }}
+                className="font-mono text-xs"
                 value={serverUrlInput}
                 onChangeText={setServerUrlInput}
                 placeholder="https://tu-api.onrender.com"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
 
             {/* Input Cookies */}
-            <Text className="text-[11px] font-bold text-slate-300 mb-1">
+            <Text
+              style={{ color: colors.textPrimary }}
+              className="text-[11px] font-bold mb-1"
+            >
               Cookies de thesmartinvestortool.com (Opcional):
             </Text>
-            <View className="bg-slate-900 rounded-xl p-2.5 border border-slate-700 mb-4 h-16">
+            <View
+              style={{
+                backgroundColor: colors.inputBg,
+                borderColor: colors.inputBorder,
+              }}
+              className="rounded-xl p-2.5 border mb-4 h-16"
+            >
               <TextInput
-                className="text-white font-mono text-xs flex-1"
+                style={{ color: colors.textPrimary }}
+                className="font-mono text-xs flex-1"
                 value={cookieInput}
                 onChangeText={setCookieInput}
                 placeholder="sessionid=...; csrftoken=..."
-                placeholderTextColor="#64748b"
+                placeholderTextColor={colors.textMuted}
                 multiline={true}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -389,9 +451,15 @@ export const DashboardScreen: React.FC = () => {
             <View className="flex-row space-x-2">
               <TouchableOpacity
                 onPress={() => setSettingsModalVisible(false)}
-                className="flex-1 bg-slate-800 py-3 rounded-xl mr-2 items-center"
+                style={{
+                  backgroundColor: colors.pillBg,
+                  borderColor: colors.pillBorder,
+                }}
+                className="flex-1 py-3 rounded-xl mr-2 items-center border"
               >
-                <Text className="text-slate-300 text-xs font-bold">Cerrar</Text>
+                <Text style={{ color: colors.textSecondary }} className="text-xs font-bold">
+                  Cerrar
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveSettings}

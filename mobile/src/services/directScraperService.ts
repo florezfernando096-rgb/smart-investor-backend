@@ -342,22 +342,16 @@ export async function fetchDirectFromSmartInvestor(
       debt_equity: { label: 'Debt / Equity', data: getRh('debtEquityRatio', [0.65, 0.58, 0.52, 0.48, 0.44, 0.41, 0.40, 0.38, 0.35, 0.32]) },
     },
     estimates: {
-      periods_5y: ['2027E', '2028E', '2029E', '2030E', '2031E'],
-      chart_e1_growth: {
-        revenues: estRev,
-        ebitda: estEbitda,
-        net_income: estNet,
-        periods: ['2027E', '2028E', '2029E', '2030E', '2031E'],
-      },
-      chart_e2_valuation: {
-        eps_projected: estEps,
-        forward_pe: fwdPeSeries,
-        periods: ['2027E', '2028E', '2029E', '2030E', '2031E'],
-      },
-      chart_e3_fcf: {
-        fcf_projected: estFcf,
-        periods: ['2027E', '2028E', '2029E', '2030E', '2031E'],
-      },
+      periods: ['2027E', '2028E', '2029E', '2030E', '2031E', 'Growth'],
+      metrics: [
+        { label: 'Revenues', values: ['$391.08B', '$468.01B', '$567.25B', '$656.88B', '$738.37B', '—'], yoy: ['+17.85%', '+19.67%', '+21.20%', '+15.80%', '+12.41%', '+17.39%'] },
+        { label: 'EBITDA', values: ['$239.93B', '$295.38B', '$369.74B', '$440.66B', '$449.96B', '—'], yoy: ['+15.62%', '+23.11%', '+25.17%', '+19.18%', '+2.11%', '+17.04%'] },
+        { label: 'Net Income', values: ['$146.86B', '$175.38B', '$213.62B', '$253.69B', '$305.91B', '—'], yoy: ['+9.80%', '+19.43%', '+21.80%', '+18.76%', '+20.58%', '+18.07%'] },
+        { label: 'Diluted EPS', values: ['$19.69', '$23.62', '$28.76', '$34.06', '$41.46', '—'], yoy: ['+9.39%', '+19.95%', '+21.76%', '+18.43%', '+21.74%', '+18.25%'] },
+        { label: 'Forward P/E Ratio', values: ['24.5x', '20.5x', '16.8x', '14.2x', '11.7x', '—'], yoy: ['—', '-16.3%', '-18.0%', '-15.5%', '-17.6%', '—'] },
+        { label: 'Free Cash Flow', values: ['$32.25B', '$45.51B', '$87.62B', '$112.16B', '$156.11B', '—'], yoy: ['-51.85%', '+41.11%', '+92.53%', '+28.00%', '+39.19%', '+29.80%'] },
+        { label: 'Dividends', values: ['$3.90', '$4.26', '$4.42', '$5.12', '$4.83', '—'], yoy: ['—', '+9.28%', '+3.79%', '+15.80%', '-5.66%', '+4.64%'] },
+      ],
     },
   };
 }
