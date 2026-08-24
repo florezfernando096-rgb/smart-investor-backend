@@ -47,7 +47,7 @@ export async function fetchDashboardData(
     try {
       const url = `${base}/api/mobile/dashboard?symbol=${cleanSymbol}&period_type=${periodType}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -64,29 +64,28 @@ export async function fetchDashboardData(
         const serverData: DashboardResponse = await response.json();
         if (serverData && serverData.price_header && serverData.price_header.price > 0) {
           customServerUrl = base;
-          const isCloud = base.includes('trycloudflare.com') || base.includes('http') && !base.includes('192.168.') && !base.includes('10.0.2.2') && !base.includes('localhost');
+          const isCloud = base.includes('trycloudflare.com') || (base.includes('http') && !base.includes('192.168.') && !base.includes('10.0.2.2') && !base.includes('localhost'));
           return { data: serverData, isDemo: false, source: isCloud ? 'cloud' : 'local' };
         }
       }
     } catch {
-      continue;
+      // Probar siguiente endpoint
     }
   }
 
-  // 2. Intentar Scraper Directo
+  // 2. Fallback a Scraper Directo en el dispositivo móvil
   try {
-    const directData = await fetchDirectFromSmartInvestor(cleanSymbol, periodType);
-    if (directData && directData.price_header && directData.price_header.price > 0) {
-      return { data: directData, isDemo: false, source: 'direct' };
+    const directResult = await fetchDirectFromSmartInvestor(cleanSymbol, periodType);
+    if (directResult && directResult.price_header && directResult.price_header.price > 0) {
+      return { data: directResult, isDemo: false, source: 'direct' };
     }
   } catch (err: any) {
-    console.warn('[apiService] Intento directo falló:', err?.message || err);
+    console.warn('Direct scraper error:', err);
   }
 
-  // 3. Fallback: Datos interactivos de demostración
-  const demoData = getOfflineDemoDashboard(cleanSymbol, periodType);
+  // 3. Modo Offline Demo como último recurso
   return {
-    data: demoData,
+    data: getOfflineDemoDashboard(cleanSymbol, periodType),
     isDemo: true,
     source: 'demo',
     errorMsg: 'Sin conexión a internet. Mostrando datos de demostración.',
@@ -106,11 +105,12 @@ export interface LiveWatchlistQuote {
 
 export async function fetchWatchlistLiveQuotes(symbols: string[]): Promise<LiveWatchlistQuote[]> {
   if (!symbols || symbols.length === 0) return [];
-  const cleanSymbols = symbols.map(s => s.trim().toUpperCase()).filter(Boolean).join(',');
+  const cleanList = symbols.map(s => s.trim().toUpperCase()).filter(Boolean);
+  const cleanSymbols = cleanList.join(',');
 
   const urlCandidates = [
-    customServerUrl,
     RENDER_CLOUD_URL,
+    customServerUrl,
     CLOUDFLARE_TUNNEL_URL,
     'http://192.168.1.7:8000',
     'http://10.0.2.2:8000',
@@ -121,7 +121,7 @@ export async function fetchWatchlistLiveQuotes(symbols: string[]): Promise<LiveW
     try {
       const url = `${base}/api/mobile/watchlist/quotes?symbols=${cleanSymbols}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 18000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -133,7 +133,7 @@ export async function fetchWatchlistLiveQuotes(symbols: string[]): Promise<LiveW
 
       if (response.ok) {
         const json = await response.json();
-        if (json && json.status === 'success' && Array.isArray(json.quotes)) {
+        if (json && json.status === 'success' && Array.isArray(json.quotes) && json.quotes.length > 0) {
           customServerUrl = base;
           return json.quotes as LiveWatchlistQuote[];
         }
@@ -141,6 +141,60 @@ export async function fetchWatchlistLiveQuotes(symbols: string[]): Promise<LiveW
     } catch {
       // Intentar siguiente servidor
     }
+  }
+
+  // Fallback: Si los servidores fallan, consultar directamente desde el móvil
+  try {
+    const directResults = await Promise.all(
+      cleanList.map(async (sym): Promise<LiveWatchlistQuote> => {
+        try {
+          const direct = await fetchDirectFromSmartInvestor(sym, 'annual');
+          if (direct && direct.price_header && direct.price_header.price > 0) {
+            const fv = direct.fair_value?.consensus_fair_value || 0;
+            let fwdPe = 0;
+            const estMetrics = direct.estimates?.metrics || [];
+            for (const m of estMetrics) {
+              if (m.label.toLowerCase().includes('forward p/e')) {
+                const v = m.values?.[0];
+                if (v && v !== '—') {
+                  fwdPe = parseFloat(String(v).replace('x', '').trim()) || 0;
+                }
+                break;
+              }
+            }
+            return {
+              symbol: sym,
+              company_name: direct.company_name || sym,
+              price: direct.price_header.price,
+              change: direct.price_header.change,
+              change_percent: direct.price_header.change_percent,
+              fair_value: fv,
+              forward_pe: fwdPe,
+              status: 'success',
+            };
+          }
+        } catch {
+          // Ignorar error individual
+        }
+        return {
+          symbol: sym,
+          company_name: sym,
+          price: 0,
+          change: 0,
+          change_percent: 0,
+          fair_value: 0,
+          forward_pe: 0,
+          status: 'error',
+        };
+      })
+    );
+
+    const validQuotes = directResults.filter(q => q.status === 'success' && q.price > 0);
+    if (validQuotes.length > 0) {
+      return directResults;
+    }
+  } catch (err) {
+    console.warn('Direct scraper fallback error for watchlist:', err);
   }
 
   return [];
@@ -195,25 +249,25 @@ export function getOfflineDemoDashboard(
       },
     },
     kpis_summary: [
-      { label: '52W Range', value: '$349.20 - $553.72' },
-      { label: 'P/E (TTM)', value: '31.41x' },
-      { label: 'P/E (FWD)', value: '26.85x' },
-      { label: 'EPS (TTM)', value: '$15.38' },
-      { label: 'Industry', value: 'Software - Infra' },
-      { label: 'Market Cap', value: '$3.59T' },
-      { label: 'Beta', value: '1.10' },
-      { label: 'Sector', value: 'Technology' },
+      { label: '52W Range', value: '$349.20 - $553.72', diff_max_pct: -12.73, icon: 'trending-up' },
+      { label: 'P/E (TTM)', value: '34.2x', icon: 'pie-chart' },
+      { label: 'P/E (FWD)', value: '28.1x', icon: 'clock' },
+      { label: 'EPS (TTM)', value: '$14.12', icon: 'dollar-sign' },
+      { label: 'Industry', value: 'Software - Infrastructure', icon: 'briefcase' },
+      { label: 'Market Cap', value: '$3.59T', icon: 'globe' },
+      { label: 'Beta', value: '1.18', icon: 'activity' },
+      { label: 'Sector', value: 'Technology', icon: 'layers' },
     ],
     fair_value: {
-      consensus_fair_value: 283.20,
+      consensus_fair_value: 589.83,
       current_price: 483.24,
-      undervalued_percentage: -41.40,
-      status: 'Sobrevaluada',
-      dcf_model: 241.37,
-      eps_model: 248.23,
-      morningstar_fair_value: 360.00,
-      morningstar_rating: 'Buy',
-      tsi_rating: 'Hold',
+      undervalued_percentage: 22.06,
+      status: 'Subvaluada',
+      dcf_model: 612.40,
+      eps_model: 560.10,
+      morningstar_fair_value: 498.30,
+      morningstar_rating: '★★★★☆',
+      tsi_rating: 'Bullish',
     },
     technical_indicators: {
       rsi: { value: 54.2, status: 'Neutral', color: '#38bdf8' },
