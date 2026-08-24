@@ -1493,40 +1493,82 @@ class SmartInvestorScraper:
 
     def fetch_watchlist_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """
-        Consulta en paralelo las cotizaciones en vivo y métricas clave (Precio, Variación, Fair Value, Forward PE)
-        para una lista de símbolos de la Watchlist.
+        Consulta en paralelo y a máxima velocidad las cotizaciones en vivo y métricas clave
+        (Precio, Variación 24h, Fair Value, Forward PE) para la lista de símbolos de la Watchlist.
         """
         def _get_single_quote(sym: str) -> Dict[str, Any]:
             clean_sym = sym.strip().upper()
             try:
-                dash = self.fetch_mobile_dashboard(clean_sym, 'annual')
-                p_header = dash.get('price_header') or {}
-                fv = dash.get('fair_value') or {}
-                est = dash.get('estimates') or {}
+                url = f"{settings.BASE_URL}/metrics?symbol={clean_sym}"
+                resp = self._get(url)
+                soup = BeautifulSoup(resp.text, "html.parser")
 
-                fwd_pe_val = None
-                for m in est.get('metrics', []):
-                    if 'forward p/e' in m.get('label', '').lower():
-                        v = m.get('values', [])
-                        if v and v[0] != '—':
-                            try:
-                                fwd_pe_val = float(str(v[0]).replace('x', '').strip())
-                            except ValueError:
-                                pass
-                        break
+                comp_info = self._extract_company_from_html(soup, clean_sym)
+                kpis = self._extract_kpis_from_html(soup)
+                est = self._extract_estimates_from_html(resp, clean_sym)
+
+                # 1. Precio Actual
+                price_val = 0.0
+                if comp_info.get("price"):
+                    try:
+                        price_val = float(str(comp_info["price"]).replace("$", "").replace(",", "").strip())
+                    except ValueError:
+                        pass
+                if price_val == 0.0 and kpis.get("Stock Price"):
+                    try:
+                        price_val = float(str(kpis["Stock Price"]).replace("$", "").replace(",", "").strip())
+                    except ValueError:
+                        pass
+
+                # 2. Variación Diaria y % de Cambio
+                change_val = 0.0
+                change_pct_val = 0.0
+                for el in soup.find_all(["span", "div", "p", "h3", "h4", "h2"]):
+                    txt = el.get_text(strip=True)
+                    m = re.search(r"([+-]?\d+\.?\d*)\s*\(\s*([+-]?\d+\.?\d*)%\s*\)", txt)
+                    if m:
+                        try:
+                            change_val = float(m.group(1))
+                            change_pct_val = float(m.group(2))
+                            break
+                        except ValueError:
+                            pass
+
+                # 3. Fair Value
+                fv_val = 0.0
+                if kpis.get("Fair Value"):
+                    try:
+                        fv_val = float(str(kpis["Fair Value"]).replace("$", "").replace(",", "").strip())
+                    except ValueError:
+                        pass
+                if fv_val == 0.0 and est.get("summary", {}).get("dcf_fair_value"):
+                    try:
+                        fv_val = float(str(est["summary"]["dcf_fair_value"]).replace("$", "").replace(",", "").strip())
+                    except ValueError:
+                        pass
+
+                # 4. Forward P/E
+                fwd_pe_val = 0.0
+                pe_str = kpis.get("PE Ratio (TTM) (FWD)", "")
+                m_pe = re.search(r"\(\s*([\d\.]+)\s*\)", pe_str)
+                if m_pe:
+                    try:
+                        fwd_pe_val = float(m_pe.group(1))
+                    except ValueError:
+                        pass
 
                 return {
                     "symbol": clean_sym,
-                    "company_name": dash.get("company_name") or clean_sym,
-                    "price": p_header.get("price") or 0.0,
-                    "change": p_header.get("change") or 0.0,
-                    "change_percent": p_header.get("change_percent") or 0.0,
-                    "fair_value": fv.get("consensus_fair_value") or 0.0,
-                    "forward_pe": fwd_pe_val or 0.0,
+                    "company_name": comp_info.get("company_name") or clean_sym,
+                    "price": price_val,
+                    "change": change_val,
+                    "change_percent": change_pct_val,
+                    "fair_value": fv_val,
+                    "forward_pe": fwd_pe_val,
                     "status": "success"
                 }
             except Exception as e:
-                logger.warning(f"Error fetching quote for {clean_sym}: {e}")
+                logger.warning(f"Error fetching fast quote for {clean_sym}: {e}")
                 return {
                     "symbol": clean_sym,
                     "company_name": clean_sym,
@@ -1543,7 +1585,7 @@ class SmartInvestorScraper:
             return []
 
         results = []
-        with ThreadPoolExecutor(max_workers=min(8, len(clean_symbols))) as executor:
+        with ThreadPoolExecutor(max_workers=min(10, max(1, len(clean_symbols)))) as executor:
             future_to_sym = {executor.submit(_get_single_quote, s): s for s in clean_symbols}
             for future in as_completed(future_to_sym):
                 results.append(future.result())

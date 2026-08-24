@@ -5,6 +5,7 @@
 import { DashboardResponse } from '../types/dashboard';
 import {
   fetchDirectFromSmartInvestor,
+  fetchDirectWatchlistQuote,
   getActiveCookieString,
   setActiveCookieString,
 } from './directScraperService';
@@ -121,7 +122,7 @@ export async function fetchWatchlistLiveQuotes(symbols: string[]): Promise<LiveW
     try {
       const url = `${base}/api/mobile/watchlist/quotes?symbols=${cleanSymbols}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -143,35 +144,14 @@ export async function fetchWatchlistLiveQuotes(symbols: string[]): Promise<LiveW
     }
   }
 
-  // Fallback: Si los servidores fallan, consultar directamente desde el móvil
+  // Fallback: Si los servidores fallan, consultar directamente desde el móvil a alta velocidad
   try {
     const directResults = await Promise.all(
       cleanList.map(async (sym): Promise<LiveWatchlistQuote> => {
         try {
-          const direct = await fetchDirectFromSmartInvestor(sym, 'annual');
-          if (direct && direct.price_header && direct.price_header.price > 0) {
-            const fv = direct.fair_value?.consensus_fair_value || 0;
-            let fwdPe = 0;
-            const estMetrics = direct.estimates?.metrics || [];
-            for (const m of estMetrics) {
-              if (m.label.toLowerCase().includes('forward p/e')) {
-                const v = m.values?.[0];
-                if (v && v !== '—') {
-                  fwdPe = parseFloat(String(v).replace('x', '').trim()) || 0;
-                }
-                break;
-              }
-            }
-            return {
-              symbol: sym,
-              company_name: direct.company_name || sym,
-              price: direct.price_header.price,
-              change: direct.price_header.change,
-              change_percent: direct.price_header.change_percent,
-              fair_value: fv,
-              forward_pe: fwdPe,
-              status: 'success',
-            };
+          const direct = await fetchDirectWatchlistQuote(sym);
+          if (direct && direct.price > 0) {
+            return direct;
           }
         } catch {
           // Ignorar error individual

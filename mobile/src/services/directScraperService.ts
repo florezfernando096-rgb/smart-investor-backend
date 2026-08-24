@@ -137,7 +137,17 @@ export async function fetchDirectFromSmartInvestor(
   }
 
   // 1. Cabecera y Precios
-  const currPrice = parseFloat(profile.price || (pricePoints.length > 0 ? pricePoints[pricePoints.length - 1].y[3] : 483.24));
+  let extractedPrice = parseFloat(profile.price || 0);
+  if (!extractedPrice || isNaN(extractedPrice)) {
+    if (pricePoints.length > 0 && pricePoints[pricePoints.length - 1]?.y?.[3]) {
+      extractedPrice = parseFloat(pricePoints[pricePoints.length - 1].y[3]);
+    }
+  }
+  if (!extractedPrice || isNaN(extractedPrice)) {
+    const mPrice = metricsHtml.match(/Stock Price.*?\$?\s*([0-9,.]+)/i);
+    if (mPrice) extractedPrice = parseFloat(mPrice[1].replace(/,/g, ''));
+  }
+  const currPrice = extractedPrice > 0 ? extractedPrice : 0;
   const changes = parseFloat(profile.changes || 0.0);
   const prevClose = currPrice - changes || 1.0;
   const changesPct = (changes / prevClose) * 100;
@@ -354,4 +364,106 @@ export async function fetchDirectFromSmartInvestor(
       ],
     },
   };
+}
+
+export async function fetchDirectWatchlistQuote(symbol: string): Promise<{
+  symbol: string;
+  company_name: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  fair_value: number;
+  forward_pe: number;
+  status: 'success' | 'error';
+}> {
+  const cleanSym = symbol.trim().toUpperCase();
+  try {
+    const headers: Record<string, string> = {
+      'User-Agent': USER_AGENT,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    };
+    if (activeCookieString) {
+      headers['Cookie'] = activeCookieString;
+    }
+
+    const resp = await fetch(`${BASE_URL}/metrics?symbol=${cleanSym}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!resp.ok) {
+      return {
+        symbol: cleanSym,
+        company_name: cleanSym,
+        price: 0,
+        change: 0,
+        change_percent: 0,
+        fair_value: 0,
+        forward_pe: 0,
+        status: 'error',
+      };
+    }
+
+    const html = await resp.text();
+    const profileList = extractJsObjectOrArray('company_profile', html) || [];
+    const profile = Array.isArray(profileList) && profileList.length > 0 ? profileList[0] : {};
+    const pricePoints = extractJsObjectOrArray('price', html) || [];
+    const fairVal = extractJsObjectOrArray('fair_value_data', html) || {};
+
+    let price = parseFloat(profile.price || 0);
+    if (!price || isNaN(price)) {
+      if (pricePoints.length > 0 && pricePoints[pricePoints.length - 1]?.y?.[3]) {
+        price = parseFloat(pricePoints[pricePoints.length - 1].y[3]);
+      }
+    }
+    if (!price || isNaN(price)) {
+      const mP = html.match(/Stock Price.*?\$?\s*([0-9,.]+)/i);
+      if (mP) price = parseFloat(mP[1].replace(/,/g, ''));
+    }
+
+    let fv = parseFloat(fairVal.consensus_fair_value || fairVal.dcf || 0);
+    if (!fv || isNaN(fv)) {
+      const mFv = html.match(/Fair Value.*?\$?\s*([0-9,.]+)/i);
+      if (mFv) fv = parseFloat(mFv[1].replace(/,/g, ''));
+    }
+
+    let fwdPe = parseFloat(profile.fwdPe || profile.pe || 0);
+    if (!fwdPe || isNaN(fwdPe)) {
+      const mPe = html.match(/PE Ratio \(TTM\) \(FWD\).*?\(\s*([0-9,.]+)\s*\)/i);
+      if (mPe) fwdPe = parseFloat(mPe[1].replace(/,/g, ''));
+    }
+
+    let change = parseFloat(profile.changes || 0);
+    let changePct = 0;
+    const mChg = html.match(/([+-]?\d+\.?\d*)\s*\(\s*([+-]?\d+\.?\d*)%\s*\)/);
+    if (mChg) {
+      change = parseFloat(mChg[1]);
+      changePct = parseFloat(mChg[2]);
+    } else if (price > 0 && change !== 0) {
+      const prev = price - change;
+      changePct = prev > 0 ? (change / prev) * 100 : 0;
+    }
+
+    return {
+      symbol: cleanSym,
+      company_name: profile.companyName || cleanSym,
+      price: price > 0 ? price : 0,
+      change,
+      change_percent: changePct,
+      fair_value: fv > 0 ? fv : 0,
+      forward_pe: fwdPe > 0 ? fwdPe : 0,
+      status: 'success',
+    };
+  } catch (err) {
+    return {
+      symbol: cleanSym,
+      company_name: cleanSym,
+      price: 0,
+      change: 0,
+      change_percent: 0,
+      fair_value: 0,
+      forward_pe: 0,
+      status: 'error',
+    };
+  }
 }
