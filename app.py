@@ -334,6 +334,26 @@ def get_demo_mobile_dashboard(period_type: str = "annual") -> Dict[str, Any]:
     }
 
 
+@app.get("/api/mobile/watchlist/quotes")
+async def get_watchlist_quotes(
+    symbols: str = Query(..., description="Lista de tickers separados por coma (ej. MSFT,AAPL,NVDA)")
+):
+    """
+    Endpoint de alta velocidad para actualizar las cotizaciones de la Watchlist en vivo.
+    """
+    sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not sym_list:
+        return {"status": "success", "quotes": []}
+
+    scraper = SmartInvestorScraper()
+    quotes = scraper.fetch_watchlist_quotes(sym_list)
+    return {
+        "status": "success",
+        "count": len(quotes),
+        "quotes": quotes
+    }
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "app": "TheSmartInvestorTool Scraper & Financial Dashboard"}

@@ -93,6 +93,59 @@ export async function fetchDashboardData(
   };
 }
 
+export interface LiveWatchlistQuote {
+  symbol: string;
+  company_name: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  fair_value: number;
+  forward_pe: number;
+  status: 'success' | 'error';
+}
+
+export async function fetchWatchlistLiveQuotes(symbols: string[]): Promise<LiveWatchlistQuote[]> {
+  if (!symbols || symbols.length === 0) return [];
+  const cleanSymbols = symbols.map(s => s.trim().toUpperCase()).filter(Boolean).join(',');
+
+  const urlCandidates = [
+    customServerUrl,
+    RENDER_CLOUD_URL,
+    CLOUDFLARE_TUNNEL_URL,
+    'http://192.168.1.7:8000',
+    'http://10.0.2.2:8000',
+    'http://localhost:8000',
+  ];
+
+  for (const base of Array.from(new Set(urlCandidates))) {
+    try {
+      const url = `${base}/api/mobile/watchlist/quotes?symbols=${cleanSymbols}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 18000);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const json = await response.json();
+        if (json && json.status === 'success' && Array.isArray(json.quotes)) {
+          customServerUrl = base;
+          return json.quotes as LiveWatchlistQuote[];
+        }
+      }
+    } catch {
+      // Intentar siguiente servidor
+    }
+  }
+
+  return [];
+}
+
 export function getOfflineDemoDashboard(
   symbol: string = 'MSFT',
   periodType: 'annual' | 'quarterly' = 'annual'

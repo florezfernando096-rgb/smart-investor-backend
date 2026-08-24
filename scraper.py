@@ -1491,6 +1491,66 @@ class SmartInvestorScraper:
 
         return result
 
+    def fetch_watchlist_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
+        """
+        Consulta en paralelo las cotizaciones en vivo y métricas clave (Precio, Variación, Fair Value, Forward PE)
+        para una lista de símbolos de la Watchlist.
+        """
+        def _get_single_quote(sym: str) -> Dict[str, Any]:
+            clean_sym = sym.strip().upper()
+            try:
+                dash = self.fetch_mobile_dashboard(clean_sym, 'annual')
+                p_header = dash.get('price_header') or {}
+                fv = dash.get('fair_value') or {}
+                est = dash.get('estimates') or {}
+
+                fwd_pe_val = None
+                for m in est.get('metrics', []):
+                    if 'forward p/e' in m.get('label', '').lower():
+                        v = m.get('values', [])
+                        if v and v[0] != '—':
+                            try:
+                                fwd_pe_val = float(str(v[0]).replace('x', '').strip())
+                            except ValueError:
+                                pass
+                        break
+
+                return {
+                    "symbol": clean_sym,
+                    "company_name": dash.get("company_name") or clean_sym,
+                    "price": p_header.get("price") or 0.0,
+                    "change": p_header.get("change") or 0.0,
+                    "change_percent": p_header.get("change_percent") or 0.0,
+                    "fair_value": fv.get("consensus_fair_value") or 0.0,
+                    "forward_pe": fwd_pe_val or 0.0,
+                    "status": "success"
+                }
+            except Exception as e:
+                logger.warning(f"Error fetching quote for {clean_sym}: {e}")
+                return {
+                    "symbol": clean_sym,
+                    "company_name": clean_sym,
+                    "price": 0.0,
+                    "change": 0.0,
+                    "change_percent": 0.0,
+                    "fair_value": 0.0,
+                    "forward_pe": 0.0,
+                    "status": "error"
+                }
+
+        clean_symbols = [s.strip().upper() for s in symbols if s.strip()]
+        if not clean_symbols:
+            return []
+
+        results = []
+        with ThreadPoolExecutor(max_workers=min(8, len(clean_symbols))) as executor:
+            future_to_sym = {executor.submit(_get_single_quote, s): s for s in clean_symbols}
+            for future in as_completed(future_to_sym):
+                results.append(future.result())
+
+        sym_map = {r["symbol"]: r for r in results}
+        return [sym_map.get(s, {"symbol": s, "price": 0.0, "change_percent": 0.0}) for s in clean_symbols]
+
     # ------------------------------------------------------------------
     # Utilities
     # ------------------------------------------------------------------

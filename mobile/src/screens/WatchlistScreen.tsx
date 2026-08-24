@@ -14,6 +14,7 @@ import { useTheme } from '../context/ThemeContext';
 import {
   WatchlistItem,
   fetchUserWatchlist,
+  syncWatchlistWithLiveMarket,
   removeFromWatchlist,
 } from '../services/watchlistService';
 import { fetchStockAlerts, StockAlert } from '../services/alertService';
@@ -41,6 +42,7 @@ export const WatchlistScreen: React.FC<Props> = ({
   const [filterQuery, setFilterQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncingLive, setSyncingLive] = useState(false);
 
   // Estado para el modal de alerta
   const [alertModalVisible, setAlertModalVisible] = useState(false);
@@ -57,17 +59,27 @@ export const WatchlistScreen: React.FC<Props> = ({
     }
 
     try {
+      // 1. Cargar datos locales / Supabase de inmediato (0ms)
       const [wlData, alertsData] = await Promise.all([
         fetchUserWatchlist(user.id),
         fetchStockAlerts(user.id),
       ]);
       setItems(wlData);
       setAlerts(alertsData);
+      setLoading(false);
+
+      // 2. Si hay activos, consultar las cotizaciones y múltiplos en vivo del mercado
+      if (wlData.length > 0) {
+        setSyncingLive(true);
+        const liveItems = await syncWatchlistWithLiveMarket(user.id, wlData);
+        setItems(liveItems);
+      }
     } catch (err) {
       console.warn('Error loading watchlist data:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setSyncingLive(false);
     }
   };
 
@@ -127,9 +139,19 @@ export const WatchlistScreen: React.FC<Props> = ({
       {/* Cabecera Principal */}
       <View className="flex-row justify-between items-center mb-2 px-1">
         <View>
-          <Text style={{ color: colors.textPrimary }} className="text-xl font-black tracking-tight">
-            📌 Mi Watchlist
-          </Text>
+          <View className="flex-row items-center">
+            <Text style={{ color: colors.textPrimary }} className="text-xl font-black tracking-tight mr-2">
+              📌 Mi Watchlist
+            </Text>
+            {syncingLive && (
+              <View className="bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-md flex-row items-center">
+                <View className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />
+                <Text className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  EN VIVO
+                </Text>
+              </View>
+            )}
+          </View>
           <Text style={{ color: colors.textSecondary }} className="text-[11px]">
             {items.length} {items.length === 1 ? 'activo en seguimiento' : 'activos en seguimiento'}
           </Text>
@@ -137,15 +159,20 @@ export const WatchlistScreen: React.FC<Props> = ({
 
         <TouchableOpacity
           onPress={onRefresh}
+          disabled={syncingLive}
           style={{
             backgroundColor: colors.pillBg,
             borderColor: colors.pillBorder,
           }}
           className="px-2.5 py-1 rounded-xl border flex-row items-center active:opacity-70"
         >
-          <Text className="text-xs mr-1">🔄</Text>
+          {syncingLive ? (
+            <ActivityIndicator size="small" color="#6366F1" style={{ marginRight: 4 }} />
+          ) : (
+            <Text className="text-xs mr-1">🔄</Text>
+          )}
           <Text style={{ color: colors.textSecondary }} className="text-xs font-semibold">
-            Actualizar
+            {syncingLive ? 'Sincronizando...' : 'Actualizar'}
           </Text>
         </TouchableOpacity>
       </View>
