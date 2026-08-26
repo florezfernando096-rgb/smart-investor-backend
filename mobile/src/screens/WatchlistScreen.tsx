@@ -14,7 +14,7 @@ import { useTheme } from '../context/ThemeContext';
 import {
   WatchlistItem,
   fetchUserWatchlist,
-  syncWatchlistWithLiveMarket,
+  refreshLiveMarketQuotes,
   removeFromWatchlist,
 } from '../services/watchlistService';
 import { fetchStockAlerts, StockAlert } from '../services/alertService';
@@ -26,7 +26,7 @@ interface Props {
 }
 
 const TICKER_COL_WIDTH = 120;
-const COL_WIDTH = 92;
+const COL_WIDTH = 94;
 const ROW_HEIGHT = 58;
 const HEADER_HEIGHT = 38;
 
@@ -41,8 +41,8 @@ export const WatchlistScreen: React.FC<Props> = ({
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const [filterQuery, setFilterQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [syncingLive, setSyncingLive] = useState(false);
+  const [updatingPrices, setUpdatingPrices] = useState(false);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState<string | null>(null);
 
   // Estado para el modal de alerta
   const [alertModalVisible, setAlertModalVisible] = useState(false);
@@ -52,44 +52,67 @@ export const WatchlistScreen: React.FC<Props> = ({
     price: number;
   } | null>(null);
 
-  const loadData = async () => {
+  const loadInitialData = async () => {
     if (!user?.id) {
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Cargar datos locales / Supabase de inmediato (0ms)
       const [wlData, alertsData] = await Promise.all([
         fetchUserWatchlist(user.id),
         fetchStockAlerts(user.id),
       ]);
       setItems(wlData);
       setAlerts(alertsData);
-      setLoading(false);
 
-      // 2. Si hay activos, consultar las cotizaciones y múltiplos en vivo del mercado
-      if (wlData.length > 0) {
-        setSyncingLive(true);
-        const liveItems = await syncWatchlistWithLiveMarket(user.id, wlData);
-        setItems(liveItems);
+      // Si ya hay cotizaciones en memoria para los activos, registrar que están disponibles
+      const hasLiveQuotes = wlData.some((i) => (Number(i.price) || 0) > 0);
+      if (hasLiveQuotes && !lastUpdatedTime) {
+        setLastUpdatedTime(
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        );
       }
     } catch (err) {
       console.warn('Error loading watchlist data:', err);
     } finally {
       setLoading(false);
-      setRefreshing(false);
-      setSyncingLive(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadInitialData();
   }, [user?.id]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
+  /**
+   * Actualización bajo demanda (cuando el usuario hace tap en "Actualizar Precios" o pull-to-refresh)
+   */
+  const handleRefreshPrices = async () => {
+    if (items.length === 0 || updatingPrices) return;
+
+    setUpdatingPrices(true);
+    try {
+      const { updatedItems, successCount } = await refreshLiveMarketQuotes(items);
+      setItems([...updatedItems]);
+
+      const nowStr = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      setLastUpdatedTime(nowStr);
+
+      if (successCount === 0 && items.length > 0) {
+        Alert.alert(
+          'Aviso de Conexión',
+          'No se pudieron obtener cotizaciones en vivo en este momento. Verifica tu conexión a internet.'
+        );
+      }
+    } catch (err) {
+      console.warn('Error refreshing live quotes:', err);
+    } finally {
+      setUpdatingPrices(false);
+    }
   };
 
   const handleOpenAlert = (item: WatchlistItem) => {
@@ -134,51 +157,81 @@ export const WatchlistScreen: React.FC<Props> = ({
     return alerts.filter((a) => a.symbol.toUpperCase() === sym.toUpperCase()).length;
   };
 
+  const hasAnyPrices = items.some((i) => (Number(i.price) || 0) > 0);
+
   return (
     <View style={{ backgroundColor: colors.bg }} className="flex-1 px-3 pt-2">
       {/* Cabecera Principal */}
-      <View className="flex-row justify-between items-center mb-2 px-1">
-        <View>
-          <View className="flex-row items-center">
-            <Text style={{ color: colors.textPrimary }} className="text-xl font-black tracking-tight mr-2">
+      <View className="flex-row justify-between items-center mb-2.5 px-1">
+        <View className="flex-1 pr-2">
+          <View className="flex-row items-center flex-wrap">
+            <Text
+              style={{ color: colors.textPrimary }}
+              className="text-xl font-black tracking-tight mr-2"
+            >
               📌 Mi Watchlist
             </Text>
-            {syncingLive && (
-              <View className="bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-md flex-row items-center">
+            {lastUpdatedTime && (
+              <View className="bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-md flex-row items-center mt-0.5">
                 <View className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />
                 <Text className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                  EN VIVO
+                  ACTUALIZADO {lastUpdatedTime}
                 </Text>
               </View>
             )}
           </View>
-          <Text style={{ color: colors.textSecondary }} className="text-[11px]">
-            {items.length} {items.length === 1 ? 'activo en seguimiento' : 'activos en seguimiento'}
+          <Text style={{ color: colors.textSecondary }} className="text-[11px] mt-0.5">
+            {items.length} {items.length === 1 ? 'activo guardado' : 'activos guardados'}
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={onRefresh}
-          disabled={syncingLive}
-          style={{
-            backgroundColor: colors.pillBg,
-            borderColor: colors.pillBorder,
-          }}
-          className="px-2.5 py-1 rounded-xl border flex-row items-center active:opacity-70"
-        >
-          {syncingLive ? (
-            <ActivityIndicator size="small" color="#6366F1" style={{ marginRight: 4 }} />
-          ) : (
-            <Text className="text-xs mr-1">🔄</Text>
-          )}
-          <Text style={{ color: colors.textSecondary }} className="text-xs font-semibold">
-            {syncingLive ? 'Sincronizando...' : 'Actualizar'}
-          </Text>
-        </TouchableOpacity>
+        {/* Botón de Actualizar Precios Bajo Demanda */}
+        {items.length > 0 && (
+          <TouchableOpacity
+            onPress={handleRefreshPrices}
+            disabled={updatingPrices}
+            style={{
+              backgroundColor: updatingPrices ? colors.cardBgSubtle : (isDark ? '#4F46E5' : '#6366F1'),
+              borderColor: isDark ? '#6366F1' : '#4F46E5',
+            }}
+            className="px-3 py-2 rounded-xl border flex-row items-center active:opacity-80 shadow-sm"
+          >
+            {updatingPrices ? (
+              <ActivityIndicator size="small" color="#818CF8" style={{ marginRight: 5 }} />
+            ) : (
+              <Text className="text-xs mr-1 text-white">⚡</Text>
+            )}
+            <Text className="text-xs font-black text-white">
+              {updatingPrices ? 'Consultando...' : 'Actualizar Precios'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Barra de Filtro Rápido */}
-      {items.length > 3 && (
+      {/* Banner de Bienvenida si no ha consultado precios aún */}
+      {!loading && items.length > 0 && !hasAnyPrices && !updatingPrices && (
+        <TouchableOpacity
+          onPress={handleRefreshPrices}
+          style={{
+            backgroundColor: isDark ? 'rgba(79, 70, 229, 0.15)' : 'rgba(99, 102, 241, 0.10)',
+            borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)',
+          }}
+          className="rounded-xl p-2.5 border mb-2.5 flex-row items-center justify-between"
+        >
+          <View className="flex-row items-center flex-1 mr-2">
+            <Text className="text-sm mr-2">💡</Text>
+            <Text style={{ color: colors.textPrimary }} className="text-[11px] font-semibold flex-1">
+              Toca aquí o en <Text className="font-extrabold text-indigo-500">"Actualizar Precios"</Text> para consultar las cotizaciones en tiempo real.
+            </Text>
+          </View>
+          <View className="bg-indigo-600 px-2 py-1 rounded-lg">
+            <Text className="text-[10px] font-black text-white uppercase">Consultar</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Barra de Filtro Rápido si hay varios items */}
+      {items.length > 4 && (
         <View
           style={{
             backgroundColor: colors.inputBg,
@@ -209,7 +262,7 @@ export const WatchlistScreen: React.FC<Props> = ({
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#6366F1" />
           <Text style={{ color: colors.textSecondary }} className="text-xs mt-2 font-semibold">
-            Cargando cotizaciones...
+            Cargando lista de seguimiento...
           </Text>
         </View>
       ) : items.length === 0 ? (
@@ -231,7 +284,7 @@ export const WatchlistScreen: React.FC<Props> = ({
             style={{ color: colors.textSecondary }}
             className="text-xs text-center mb-6 leading-5"
           >
-            Busca cualquier acción en el analizador y presiona "⭐ Seguir" para monitorearla en tiempo real.
+            Busca cualquier acción en el analizador y presiona "⭐ Seguir" para agregarla a tu lista de monitoreo.
           </Text>
           <TouchableOpacity
             onPress={onNavigateToSearch}
@@ -260,8 +313,8 @@ export const WatchlistScreen: React.FC<Props> = ({
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
+                refreshing={updatingPrices}
+                onRefresh={handleRefreshPrices}
                 tintColor="#6366F1"
                 colors={['#6366F1']}
               />
@@ -390,6 +443,7 @@ export const WatchlistScreen: React.FC<Props> = ({
                   {filteredItems.map((item, rIdx) => {
                     const isZebra = rIdx % 2 === 1;
                     const price = Number(item.price) || 0;
+                    const hasPrice = price > 0;
                     const changePct = Number(item.change_percent) || 0;
                     const isPos = changePct >= 0;
                     const fairVal = Number(item.fair_value) || 0;
@@ -419,16 +473,24 @@ export const WatchlistScreen: React.FC<Props> = ({
                           style={{ width: COL_WIDTH, borderRightColor: colors.gridLine }}
                           className="h-full justify-center items-center px-1 border-r"
                         >
-                          <Text style={{ color: colors.textPrimary }} className="text-xs font-black">
-                            ${price.toFixed(2)}
-                          </Text>
-                          <Text
-                            style={{ color: isPos ? colors.positive : colors.negative }}
-                            className="text-[10px] font-extrabold"
-                          >
-                            {isPos ? '+' : ''}
-                            {changePct.toFixed(2)}%
-                          </Text>
+                          {hasPrice ? (
+                            <>
+                              <Text style={{ color: colors.textPrimary }} className="text-xs font-black">
+                                ${price.toFixed(2)}
+                              </Text>
+                              <Text
+                                style={{ color: isPos ? colors.positive : colors.negative }}
+                                className="text-[10px] font-extrabold"
+                              >
+                                {isPos ? '+' : ''}
+                                {changePct.toFixed(2)}%
+                              </Text>
+                            </>
+                          ) : (
+                            <Text style={{ color: colors.textMuted }} className="text-xs font-bold">
+                              —
+                            </Text>
+                          )}
                         </TouchableOpacity>
 
                         {/* Celda: Fair Value */}
@@ -445,7 +507,7 @@ export const WatchlistScreen: React.FC<Props> = ({
                             {fairVal > 0 ? `$${fairVal.toFixed(2)}` : '—'}
                           </Text>
                           <Text style={{ color: colors.textMuted }} className="text-[9px]">
-                            Consenso
+                            {fairVal > 0 ? 'Consenso' : 'Sin datos'}
                           </Text>
                         </TouchableOpacity>
 
@@ -463,7 +525,7 @@ export const WatchlistScreen: React.FC<Props> = ({
                             {fwdPe > 0 ? `${fwdPe.toFixed(1)}x` : '—'}
                           </Text>
                           <Text style={{ color: colors.textMuted }} className="text-[9px]">
-                            Múltiplo
+                            {fwdPe > 0 ? 'Múltiplo' : 'Sin datos'}
                           </Text>
                         </TouchableOpacity>
 
@@ -518,7 +580,7 @@ export const WatchlistScreen: React.FC<Props> = ({
           symbol={selectedStockForAlert.symbol}
           companyName={selectedStockForAlert.companyName}
           currentPrice={selectedStockForAlert.price}
-          onAlertCreated={() => loadData()}
+          onAlertCreated={() => loadInitialData()}
         />
       )}
     </View>

@@ -132,11 +132,6 @@ export const DashboardScreen: React.FC<Props> = ({
         user_id: user.id,
         symbol: symbol.toUpperCase(),
         company_name: data?.company_name || symbol,
-        price: data?.price_header?.price || 0,
-        change: data?.price_header?.change || 0,
-        change_percent: data?.price_header?.change_percent || 0,
-        fair_value: fairValNum,
-        forward_pe: fwdPeNum,
       });
       if (onWatchlistChanged) onWatchlistChanged();
     }
